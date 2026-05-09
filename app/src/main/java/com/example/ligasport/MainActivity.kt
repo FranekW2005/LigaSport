@@ -1,51 +1,67 @@
 package com.example.ligasport
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
+import android.os.Bundle                                // Obiekt do przechowywania danych
+import androidx.activity.ComponentActivity              // Klasa bazowa dla Activity używających Compose
+import androidx.activity.compose.setContent             // Rozszerza ComponentActivity
+import androidx.activity.enableEdgeToEdge               // Sprawia że aplikacja jest pod paskiem statusu
+import androidx.compose.foundation.layout.fillMaxSize   // Modyfikator rozmiaru
+import androidx.compose.material3.MaterialTheme         // Dostęp do kolorów i stylów Material3
+import androidx.compose.material3.Surface               // Kontener w Material3
+import com.example.ligasport.ui.theme.LigaSportTheme    // Własny motyw
+import androidx.compose.runtime.*                       // Wszystko z pakietu runtime
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.ligasport.ui.theme.LigaSportTheme
-import androidx.compose.runtime.*
 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            LigaSportTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+        enableEdgeToEdge() // fullscreen
+        setContent {       // rysowanie UI w Compose
+            MaterialTheme {
+                Surface(modifier = Modifier.fillMaxSize()) { // kontener z tłem
+                    AppNavigation()
                 }
             }
         }
     }
 }
 
+/**
+ * Funckja obsługująca nawigację w aplikacji.
+ */
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+fun AppNavigation() {
+    /**
+     * **Zmienna sterująca który ekran pokazać.**
+     *
+     * * "login" - ekran startowy*
+     *
+     * * "leagues" - widok lig*
+     *
+     * * "leagueDetail" - wgląd w ligę"*
+     */
+    var currentScreen by remember {mutableStateOf("login")}
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    LigaSportTheme {
-        Greeting("Android")
+    /**
+     * **ID wybranej ligi.**
+     */
+    var selectedLeagueId by remember {mutableStateOf("")}
+
+    when (currentScreen){
+        "login" -> LoginScreen (
+            onLoginSuccess = {currentScreen = "leagues"}
+        )
+
+        "leagues" -> LeaguesScreen (
+            onLeagueClick = {leagueID ->
+                selectedLeagueId = leagueID
+                currentScreen = "leagueDetail"
+            }
+        )
+
+        "leagueDetail" -> LeagueDetailScreen(
+            leagueId = selectedLeagueId,
+            onBack = { currentScreen = "leagues" }
+        )
     }
 }
