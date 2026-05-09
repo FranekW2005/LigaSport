@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun LeaguesScreen(
     onLeagueClick: (String) -> Unit,
+    onBack: () -> Unit,
     viewModel: LeagueViewModel = viewModel()
 ) {
     // Dane z viewModel
@@ -44,11 +45,21 @@ fun LeaguesScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = "Moje Ligi",
-            fontSize = 28.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Moje Ligi",
+                fontSize = 28.sp
+            )
+            TextButton(onClick = onBack) {
+                Text("Powrót")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         errorMessage?.let { error ->
             Text(

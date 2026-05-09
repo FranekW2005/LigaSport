@@ -10,7 +10,7 @@ import androidx.compose.material3.Surface               // Kontener w Material3
 import com.example.ligasport.ui.theme.LigaSportTheme    // Własny motyw
 import androidx.compose.runtime.*                       // Wszystko z pakietu runtime
 import androidx.compose.ui.Modifier
-
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,14 +49,23 @@ fun AppNavigation() {
 
     when (currentScreen){
         "login" -> LoginScreen (
-            onLoginSuccess = {currentScreen = "leagues"}
+            onLoginSuccess = {currentScreen = "home"}
+        )
+
+        "home" -> HomeScreen(
+            onNavigateToLeagues = { currentScreen = "leagues" },
+            onLogout = {
+                FirebaseAuth.getInstance().signOut()
+                currentScreen = "login"
+            }
         )
 
         "leagues" -> LeaguesScreen (
             onLeagueClick = {leagueID ->
                 selectedLeagueId = leagueID
                 currentScreen = "leagueDetail"
-            }
+            },
+            onBack = { currentScreen = "home" }
         )
 
         "leagueDetail" -> LeagueDetailScreen(
