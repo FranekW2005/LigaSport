@@ -12,12 +12,13 @@ import androidx.compose.runtime.*                       // Wszystko z pakietu ru
 import androidx.compose.ui.Modifier
 import com.google.firebase.auth.FirebaseAuth
 
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge() // fullscreen
         setContent {       // rysowanie UI w Compose
-            MaterialTheme {
+            LigaSportTheme {
                 Surface(modifier = Modifier.fillMaxSize()) { // kontener z tłem
                     AppNavigation()
                 }
