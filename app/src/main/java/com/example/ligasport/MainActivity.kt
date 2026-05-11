@@ -28,7 +28,15 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppNavigation() {
-    var currentScreen by remember { mutableStateOf("login") }
+    // Sprawdź czy użytkownik jest zalogowany PRZY STARCIE
+    val isLoggedIn = FirebaseAuth.getInstance().currentUser != null
+
+    // Ustaw ekran startowy w zależności czy jest zalogowany
+    var currentScreen by remember {
+        mutableStateOf(if (isLoggedIn) "home" else "login")
+    }
+
+    // ID wybranej ligi
     var selectedLeagueId by remember { mutableStateOf("") }
 
     when (currentScreen) {
@@ -37,7 +45,7 @@ fun AppNavigation() {
         )
 
         "home" -> HomeScreen(
-            onNavigateToLeagues = { /* HomeScreen obsługuje to teraz wewnętrznie */ },
+            onNavigateToLeagues = { currentScreen = "leagues" },
             onLeagueClick = { leagueId ->
                 selectedLeagueId = leagueId
                 currentScreen = "leagueDetail"
@@ -48,9 +56,17 @@ fun AppNavigation() {
             }
         )
 
+        "leagues" -> LeaguesScreen(
+            onLeagueClick = { leagueId ->
+                selectedLeagueId = leagueId
+                currentScreen = "leagueDetail"
+            },
+            onBack = { currentScreen = "home" }
+        )
+
         "leagueDetail" -> LeagueDetailScreen(
             leagueId = selectedLeagueId,
-            onBack = { currentScreen = "home" } // Powrót do ekranu głównego (który pamięta zakładkę Ligi)
+            onBack = { currentScreen = "leagues" }
         )
     }
 }

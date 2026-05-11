@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 // Ikony dla bottom bar
 import androidx.compose.material.icons.Icons
@@ -20,6 +22,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.List
+
 
 // === ZAKŁADKI BOTTOM BARA ===
 enum class HomeTab(val title: String) {
@@ -43,7 +46,18 @@ fun HomeScreen(
     // Pobierz dane użytkownika
     val auth = FirebaseAuth.getInstance()
     val userEmail = auth.currentUser?.email ?: ""
-    val userName = userEmail.split("@").firstOrNull() ?: "Użytkowniku"
+    var userName by remember { mutableStateOf("Użytkowniku") }
+    LaunchedEffect(Unit) {
+        val userId = auth.currentUser?.uid
+        if (userId != null) {
+            val doc = FirebaseFirestore.getInstance()
+                    .collection("users")
+                    .document(userId)
+                    .get()
+                    .await()
+            userName = doc.getString("userName") ?: "Użytkowniku"
+        }
+    }
 
     // Scaffold z bottom barem
     Scaffold(
@@ -340,20 +354,172 @@ fun CalendarTabContent() {
 }
 
 // === ZAWARTOŚĆ ZAKŁADKI PROFIL ===
+// === ZAWARTOŚĆ ZAKŁADKI PROFIL ===
 @Composable
 fun ProfileTabContent(userEmail: String, onLogout: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = "Mój Profil", fontSize = 24.sp, modifier = Modifier.padding(bottom = 24.dp))
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Email:", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(userEmail, fontSize = 18.sp)
+    val auth = FirebaseAuth.getInstance()
+    val firestore = FirebaseFirestore.getInstance()
+
+    // Pobierz aktualną nazwę użytkownika
+    var userName by remember { mutableStateOf("Użytkowniku") }
+    var isEditing by remember { mutableStateOf(false) }
+    var editedName by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
+
+    // Pobierz nazwę przy starcie
+    LaunchedEffect(Unit) {
+        val userId = auth.currentUser?.uid
+        if (userId != null) {
+            try {
+                val doc = firestore.collection("users")
+                    .document(userId)
+                    .get()
+                    .await()
+                userName = doc.getString("userName") ?: "Użytkowniku"
+            } catch (e: Exception) {
+                userName = "Użytkowniku"
             }
         }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Mój Profil",
+            fontSize = 24.sp,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
+        // Awatar(pierwsza litera imienia)
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .padding(bottom = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = userName.firstOrNull()?.uppercase() ?: "?",
+                        fontSize = 36.sp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Nazwa użytkownika
+        if (isEditing) {
+            // Tryb edycji
+            OutlinedTextField(
+                value = editedName,
+                onValueChange = { editedName = it },
+                label = { Text("Nowa nazwa") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // Przycisk zapisz
+                Button(
+                    onClick = {
+                        if (editedName.isNotBlank()) {
+                            isSaving = true
+                            val userId = auth.currentUser?.uid
+                            if (userId != null) {
+                                // Zapisz w Firestore
+                                firestore.collection("users")
+                                    .document(userId)
+                                    .update("userName", editedName)
+                                    .addOnSuccessListener {
+                                        userName = editedName
+                                        isEditing = false
+                                        isSaving = false
+                                    }
+                                    .addOnFailureListener {
+                                        isSaving = false
+                                    }
+                            }
+                        }
+                    },
+                    enabled = !isSaving
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Zapisz")
+                    }
+                }
+
+                // Przycisk anuluj
+                OutlinedButton(
+                    onClick = {
+                        isEditing = false
+                    }
+                ) {
+                    Text("Anuluj")
+                }
+            }
+        } else {
+            // Tryb wyświetlania
+            Text(
+                text = userName,
+                fontSize = 22.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextButton(
+                onClick = {
+                    editedName = userName
+                    isEditing = true
+                }
+            ) {
+                Text("Zmień nazwę")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Email
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "Email:",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(userEmail, fontSize = 16.sp)
+            }
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
+
+        // Wylogowanie
         Button(
             onClick = onLogout,
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error
+            ),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Wyloguj się")
