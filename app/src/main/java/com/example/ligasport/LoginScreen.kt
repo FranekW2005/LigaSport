@@ -12,10 +12,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.proto.Mutation
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
     //Zmienne Stanu
+    /**
+     * To co użytkownik wpisze w pole imię.
+     */
+    var userName by remember { mutableStateOf("") }
     /**
      * To co użytkownik wpisał w pole email.
      */
@@ -67,6 +72,20 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             color = MaterialTheme.colorScheme.primary
         )
 
+        // Pokaż pole nazwy użytkownika TYLKO przy rejestracji
+        if (isRegistering) {
+            OutlinedTextField(
+                value = userName,
+                onValueChange = { userName = it },
+                label = { Text("Nazwa użytkownika") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+
         Spacer(modifier = Modifier.height(32.dp)) // Odstęp 32dp między nagłówkiem a polami
 
         // Pole email
@@ -116,6 +135,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
                 if (isRegistering){
                     //Rejestracja
+                    // Sprawdź czy nazwa użytkownika nie jest pusta
+                    if (userName.isBlank()) {
+                        errorMessage = "Podaj nazwę użytkownika"
+                        isLoading = false
+                        return@Button
+                    }
                     // createUserWithEmailAndPassword() tworzy nowe konto
                     auth.createUserWithEmailAndPassword(email, password)
                         .addOnCompleteListener { task ->
@@ -123,7 +148,24 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                             isLoading = false // Przestań ładować
 
                             if (task.isSuccessful) {
-                                onLoginSuccess() // Do głównego ekranu
+                                val userId = task.result.user!!.uid
+                                val userData = hashMapOf(
+                                    "userName" to userName,
+                                    "email" to email
+                                )
+                                FirebaseFirestore.getInstance()
+                                    .collection("users")
+                                    .document(userId)
+                                    .set(userData)
+                                    .addOnSuccessListener {
+                                        // Dane zapisane → idź do głównego ekranu
+                                        onLoginSuccess()
+                                    }
+                                    .addOnFailureListener { exception ->
+                                        // Błąd zapisu → pokaż komunikat
+                                        errorMessage = "Błąd zapisu danych: ${exception.message}"
+                                        isLoading = false
+                                    }
                             }
                             else { // błąd przy rejestracji
                                 errorMessage = task.exception?.message

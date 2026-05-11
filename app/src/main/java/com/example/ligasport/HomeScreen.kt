@@ -15,6 +15,9 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Person
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 // === ZAKŁADKI BOTTOM BARA ===
 // Każda zakładka ma: nazwę, ikonę i treść
@@ -37,7 +40,25 @@ fun HomeScreen(
     // Pobierz dane użytkownika
     val auth = FirebaseAuth.getInstance()
     val userEmail = auth.currentUser?.email ?: ""
-    val userName = userEmail.split("@").firstOrNull() ?: "Użytkowniku"
+    // Pobierz userName z Firestore (nie z auth!)
+    var userName by remember { mutableStateOf("Użytkowniku") }
+
+// Pobierz nazwę użytkownika z Firestore przy starcie
+    LaunchedEffect(Unit) {
+        val userId = auth.currentUser?.uid
+        if (userId != null) {
+            try {
+                val doc = FirebaseFirestore.getInstance()
+                    .collection("users")
+                    .document(userId)
+                    .get()
+                    .await()
+                userName = doc.getString("userName") ?: "Użytkowniku"
+            } catch (e: Exception) {
+                userName = "Użytkowniku"
+            }
+        }
+    }
 
     // Scaffold z bottom barem
     Scaffold(
