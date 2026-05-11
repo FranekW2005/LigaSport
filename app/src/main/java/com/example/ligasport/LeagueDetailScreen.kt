@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 /**
- * Ekran szczegółów ligi, umożliwiający zarządzanie drużynami i ich zawodnikami (Dane z Firebase).
+ * Ekran szczegółów ligi, umożliwiający zarządzanie drużynami w danej lidze.
  */
 @Composable
 fun LeagueDetailScreen(
@@ -21,171 +21,49 @@ fun LeagueDetailScreen(
     onBack: () -> Unit,
     viewModel: LeagueViewModel = viewModel()
 ) {
-    // Obserwowanie drużyn z ViewModel
-    val teams by viewModel.teams.collectAsState()
+    val teamsInLeague by viewModel.teamsInLeague.collectAsState()
+    val globalTeams by viewModel.globalTeams.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // Załaduj drużyny po wejściu na ekran
+    var showAddTeamDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(leagueId) {
-        viewModel.loadTeams(leagueId)
+        viewModel.loadTeamsInLeague(leagueId)
+        viewModel.loadGlobalTeams()
     }
-    
-    // Stan przechowujący aktualnie wybraną drużynę (do widoku zawodników)
-    // Szukamy w aktualnej liście teams, aby mieć świeże dane po aktualizacjach
-    var selectedTeamId by remember { mutableStateOf<String?>(null) }
-    val selectedTeam = teams.find { it.id == selectedTeamId }
 
-    if (selectedTeam == null) {
-        // --- WIDOK 1: LISTA DRUŻYN W LIDZE ---
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Szczegóły Ligi", fontSize = 24.sp)
-                Button(onClick = onBack) {
-                    Text("Powrót")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (isLoading) {
-                CircularProgressIndicator()
-            } else {
-                // Formularz dodawania nowej drużyny
-                var newTeamName by remember { mutableStateOf("") }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newTeamName,
-                        onValueChange = { newTeamName = it },
-                        label = { Text("Nazwa nowej drużyny") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (newTeamName.isNotBlank()) {
-                                viewModel.addTeam(leagueId, newTeamName)
-                                newTeamName = ""
-                            }
-                        }
-                    ) {
-                        Text("Dodaj")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = "Drużyny:",
-                    fontSize = 20.sp,
-                    modifier = Modifier.align(Alignment.Start)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Lista drużyn
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(teams) { team ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { selectedTeamId = team.id }
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = team.name, fontSize = 18.sp)
-                                    Text(
-                                        text = "Zawodników: ${team.players.size}",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                
-                                // Przycisk usuwania drużyny
-                                TextButton(onClick = { viewModel.deleteTeam(leagueId, team.id) }) {
-                                    Text("Usuń", color = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                        }
-                    }
-                }
+            Text(text = "Szczegóły Ligi", fontSize = 24.sp)
+            Button(onClick = onBack) {
+                Text("Powrót")
             }
         }
-    } else {
-        // --- WIDOK 2: LISTA ZAWODNIKÓW W WYBRANEJ DRUŻYNIE ---
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Drużyna: ${selectedTeam.name}", fontSize = 24.sp)
-                Button(onClick = { selectedTeamId = null }) {
-                    Text("Zamknij")
-                }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-            // Formularz dodawania zawodnika
-            var newPlayerName by remember { mutableStateOf("") }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = newPlayerName,
-                    onValueChange = { newPlayerName = it },
-                    label = { Text("Imię i nazwisko") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        if (newPlayerName.isNotBlank()) {
-                            viewModel.addPlayer(leagueId, selectedTeam.id, newPlayerName)
-                            newPlayerName = ""
-                        }
-                    }
-                ) {
-                    Text("Dodaj")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
+        if (isLoading) {
+            CircularProgressIndicator()
+        } else {
             Text(
-                text = "Zawodnicy:",
+                text = "Drużyny w tej lidze:",
                 fontSize = 20.sp,
                 modifier = Modifier.align(Alignment.Start)
             )
+            
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Lista zawodników
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(selectedTeam.players) { player ->
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(teamsInLeague) { team ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -198,24 +76,70 @@ fun LeagueDetailScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = player.name,
-                                fontSize = 18.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                            
-                            // Przycisk usuwania zawodnika
-                            TextButton(
-                                onClick = { 
-                                    viewModel.deletePlayer(leagueId, selectedTeam.id, player)
-                                }
-                            ) {
+                            Column {
+                                Text(text = team.name, fontSize = 18.sp)
+                                Text(
+                                    text = "Zawodników: ${team.players.size}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = { viewModel.deleteTeamFromLeague(leagueId, team.id) }) {
                                 Text("Usuń", color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = { showAddTeamDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Dodaj drużynę do ligi")
+            }
         }
+    }
+
+    if (showAddTeamDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddTeamDialog = false },
+            title = { Text("Wybierz drużynę") },
+            text = {
+                Column {
+                    Text("Wybierz jedną ze swoich drużyn:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                        val availableTeams = globalTeams.filter { gt -> 
+                            teamsInLeague.none { it.name == gt.name } 
+                        }
+                        
+                        if (availableTeams.isEmpty()) {
+                            item {
+                                Text("Brak dostępnych drużyn. Stwórz je w zakładce 'Drużyna'.", 
+                                    fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
+                            }
+                        } else {
+                            items(availableTeams) { team ->
+                                ListItem(
+                                    headlineContent = { Text(team.name) },
+                                    modifier = Modifier.clickable {
+                                        viewModel.addTeamToLeague(leagueId, team)
+                                        showAddTeamDialog = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAddTeamDialog = false }) {
+                    Text("Zamknij")
+                }
+            }
+        )
     }
 }

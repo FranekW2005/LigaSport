@@ -11,238 +11,161 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
-/**
- * Przechowuje dane i logikę dla lig
-  */
-
-
 class LeagueViewModel : ViewModel() {
-
-    /**
-     * **Baza danych Firestore.**
-     */
     private val firestore = FirebaseFirestore.getInstance()
-
-    /**
-     * **Sprawdza kto jest zalogowany.**
-     */
     private val auth = FirebaseAuth.getInstance()
 
-    // Stan listy lig
-    private val _leagues = MutableStateFlow<List<League>>(emptyList()) // SteteFlow - strumien danych który emituje aktualną wartość
+    private val _leagues = MutableStateFlow<List<League>>(emptyList())
     val leagues: StateFlow<List<League>> = _leagues
 
-    /**
-     * Czy trwa ładowanie.
-     */
+    private val _globalTeams = MutableStateFlow<List<Team>>(emptyList())
+    val globalTeams: StateFlow<List<Team>> = _globalTeams
+
+    private val _teamsInLeague = MutableStateFlow<List<Team>>(emptyList())
+    val teamsInLeague: StateFlow<List<Team>> = _teamsInLeague
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    /**
-     * Komunikat błędu.
-     */
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    // Stan drużyn dla wybranej ligi
-    private val _teams = MutableStateFlow<List<Team>>(emptyList())
-    val teams: StateFlow<List<Team>> = _teams
-
-    // Inicjalizacja
-    init { // wywołuje się gdy ViewModel jest tworzony
+    init {
         loadLeagues()
+        loadGlobalTeams()
     }
 
+    // --- LIGI ---
     fun loadLeagues() {
         viewModelScope.launch {
             _isLoading.value = true
-
             try {
-                /**
-                 * Zapytanie do Firestore:
-                 *
-                 * Pobierz wszystkie ligi gdzie adminId = obecny użytkownik
-                 */
                 val snapshot = firestore.collection("leagues")
                     .whereEqualTo("adminId", auth.currentUser?.uid)
-                    .get()
-                    .await() // poczekaj na wynik (korutyna)
-
-                /**
-                 * Przekształć dokumenty Firestore na liste League
-                 */
-                val leagueList = snapshot.documents.mapNotNull { document ->
-                    val name = document.getString("name") ?: return@mapNotNull null
-                    League(
-                        id = document.id,
-                        name = name
-                    )
+                    .get().await()
+                _leagues.value = snapshot.documents.mapNotNull { doc ->
+                    val name = doc.getString("name") ?: return@mapNotNull null
+                    League(id = doc.id, name = name)
                 }
-
-                _leagues.value = leagueList
-
             } catch (e: Exception) {
-                _errorMessage.value = "Błąd ładowania lig: ${e.message}"
-            } finally {
-                _isLoading.value = false
-            }
+                _errorMessage.value = "Błąd: ${e.message}"
+            } finally { _isLoading.value = false }
         }
     }
 
-    /**
-     * Tworzenie nowej ligi
-     */
     fun createLeague(name: String) {
         viewModelScope.launch {
-            _isLoading.value = true
-
             try {
-
-                /**
-                 * Dane ligi do zapisania
-                 */
-                val leagueData = hashMapOf(
-                    "name" to name,
-                    "adminId" to (auth.currentUser?.uid ?: ""),
-                    "createdAt" to System.currentTimeMillis()
-                )
-
-                // Dodaj do Firestore
-                firestore.collection("leagues")
-                    .add(leagueData) // tworzy nowy dokument z automatycznmym ID
-                    .await()
-
-                loadLeagues() // Odśwież listę lig
-            } catch (e: Exception) {
-                _errorMessage.value = "Błąd tworzenia ligi: ${e.message}"
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * Usuwanie ligi
-     */
-    fun deleteLeague(leagueId: String) {
-        viewModelScope.launch {
-            try {
-                firestore.collection("leagues")
-                    .document(leagueId)
-                    .delete()
-                    .await()
-
+                val data = hashMapOf("name" to name, "adminId" to (auth.currentUser?.uid ?: ""))
+                firestore.collection("leagues").add(data).await()
                 loadLeagues()
-            } catch (e: Exception) {
-                _errorMessage.value = "Błąd usuwania: ${e.message}"
-            }
+            } catch (e: Exception) { _errorMessage.value = e.message }
         }
     }
 
-    /**
-     * Pobieranie drużyn dla konkretnej ligi
-     */
-    fun loadTeams(leagueId: String) {
+    fun deleteLeague(id: String) {
+        viewModelScope.launch {
+            try {
+                firestore.collection("leagues").document(id).delete().await()
+                loadLeagues()
+            } catch (e: Exception) { _errorMessage.value = e.message }
+        }
+    }
+
+    // --- DRUŻYNY GLOBALNE (Sekcja Drużyna) ---
+    fun loadGlobalTeams() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val snapshot = firestore.collection("leagues")
-                    .document(leagueId)
-                    .collection("teams")
-                    .get()
-                    .await()
-
-                val teamList = snapshot.documents.mapNotNull { doc ->
+                val snapshot = firestore.collection("global_teams")
+                    .whereEqualTo("ownerId", auth.currentUser?.uid)
+                    .get().await()
+                _globalTeams.value = snapshot.documents.mapNotNull { doc ->
                     doc.toObject(Team::class.java)?.copy(id = doc.id)
                 }
-                _teams.value = teamList
-            } catch (e: Exception) {
-                _errorMessage.value = "Błąd ładowania drużyn: ${e.message}"
-            } finally {
-                _isLoading.value = false
-            }
+            } catch (e: Exception) { _errorMessage.value = e.message }
+            finally { _isLoading.value = false }
         }
     }
 
-    /**
-     * Dodawanie drużyny do ligi
-     */
-    fun addTeam(leagueId: String, name: String) {
+    fun createGlobalTeam(name: String) {
         viewModelScope.launch {
             try {
-                val teamData = Team(id = "", name = name, players = emptyList())
-                firestore.collection("leagues")
-                    .document(leagueId)
-                    .collection("teams")
-                    .add(teamData)
-                    .await()
-                loadTeams(leagueId)
-            } catch (e: Exception) {
-                _errorMessage.value = "Błąd dodawania drużyny: ${e.message}"
-            }
+                val data = hashMapOf(
+                    "name" to name,
+                    "ownerId" to (auth.currentUser?.uid ?: ""),
+                    "players" to emptyList<Player>()
+                )
+                firestore.collection("global_teams").add(data).await()
+                loadGlobalTeams()
+            } catch (e: Exception) { _errorMessage.value = e.message }
         }
     }
 
-    /**
-     * Usuwanie drużyny
-     */
-    fun deleteTeam(leagueId: String, teamId: String) {
+    fun deleteGlobalTeam(id: String) {
         viewModelScope.launch {
             try {
-                firestore.collection("leagues")
-                    .document(leagueId)
-                    .collection("teams")
-                    .document(teamId)
-                    .delete()
-                    .await()
-                loadTeams(leagueId)
-            } catch (e: Exception) {
-                _errorMessage.value = "Błąd usuwania drużyny: ${e.message}"
-            }
+                firestore.collection("global_teams").document(id).delete().await()
+                loadGlobalTeams()
+            } catch (e: Exception) { _errorMessage.value = e.message }
         }
     }
 
-    /**
-     * Dodawanie zawodnika do drużyny
-     */
-    fun addPlayer(leagueId: String, teamId: String, playerName: String) {
+    fun addPlayerToGlobalTeam(teamId: String, playerName: String) {
         viewModelScope.launch {
             try {
-                val newPlayer = Player(id = UUID.randomUUID().toString(), name = playerName)
-                firestore.collection("leagues")
-                    .document(leagueId)
-                    .collection("teams")
-                    .document(teamId)
-                    .update("players", FieldValue.arrayUnion(newPlayer))
-                    .await()
-                loadTeams(leagueId)
-            } catch (e: Exception) {
-                _errorMessage.value = "Błąd dodawania zawodnika: ${e.message}"
-            }
+                val player = Player(id = UUID.randomUUID().toString(), name = playerName)
+                firestore.collection("global_teams").document(teamId)
+                    .update("players", FieldValue.arrayUnion(player)).await()
+                loadGlobalTeams()
+            } catch (e: Exception) { _errorMessage.value = e.message }
         }
     }
 
-    /**
-     * Usuwanie zawodnika z drużyny
-     */
-    fun deletePlayer(leagueId: String, teamId: String, player: Player) {
+    fun deletePlayerFromGlobalTeam(teamId: String, player: Player) {
         viewModelScope.launch {
             try {
-                firestore.collection("leagues")
-                    .document(leagueId)
-                    .collection("teams")
-                    .document(teamId)
-                    .update("players", FieldValue.arrayRemove(player))
-                    .await()
-                loadTeams(leagueId)
-            } catch (e: Exception) {
-                _errorMessage.value = "Błąd usuwania zawodnika: ${e.message}"
-            }
+                firestore.collection("global_teams").document(teamId)
+                    .update("players", FieldValue.arrayRemove(player)).await()
+                loadGlobalTeams()
+            } catch (e: Exception) { _errorMessage.value = e.message }
+        }
+    }
+
+    // --- DRUŻYNY W KONKRETNEJ LIDZE ---
+    fun loadTeamsInLeague(leagueId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val snapshot = firestore.collection("leagues").document(leagueId)
+                    .collection("teams").get().await()
+                _teamsInLeague.value = snapshot.documents.mapNotNull { doc ->
+                    doc.toObject(Team::class.java)?.copy(id = doc.id)
+                }
+            } catch (e: Exception) { _errorMessage.value = e.message }
+            finally { _isLoading.value = false }
+        }
+    }
+
+    fun addTeamToLeague(leagueId: String, team: Team) {
+        viewModelScope.launch {
+            try {
+                firestore.collection("leagues").document(leagueId)
+                    .collection("teams").document(team.id).set(team).await()
+                loadTeamsInLeague(leagueId)
+            } catch (e: Exception) { _errorMessage.value = e.message }
+        }
+    }
+
+    fun deleteTeamFromLeague(leagueId: String, teamId: String) {
+        viewModelScope.launch {
+            try {
+                firestore.collection("leagues").document(leagueId)
+                    .collection("teams").document(teamId).delete().await()
+                loadTeamsInLeague(leagueId)
+            } catch (e: Exception) { _errorMessage.value = e.message }
         }
     }
 }
 
-data class League(
-    val id: String = "",
-    val name: String = ""
-)
+data class League(val id: String = "", val name: String = "")
