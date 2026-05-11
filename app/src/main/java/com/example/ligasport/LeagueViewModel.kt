@@ -35,7 +35,6 @@ class LeagueViewModel : ViewModel() {
         loadGlobalTeams()
     }
 
-    // --- LIGI ---
     fun loadLeagues() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -72,7 +71,6 @@ class LeagueViewModel : ViewModel() {
         }
     }
 
-    // --- DRUŻYNY GLOBALNE (Sekcja Drużyna) ---
     fun loadGlobalTeams() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -111,12 +109,12 @@ class LeagueViewModel : ViewModel() {
         }
     }
 
-    fun addPlayerToGlobalTeam(teamId: String, playerName: String) {
+    fun addPlayerToGlobalTeam(teamId: String, player: Player) {
         viewModelScope.launch {
             try {
-                val player = Player(id = UUID.randomUUID().toString(), name = playerName)
+                val newPlayer = if (player.id.isEmpty()) player.copy(id = UUID.randomUUID().toString()) else player
                 firestore.collection("global_teams").document(teamId)
-                    .update("players", FieldValue.arrayUnion(player)).await()
+                    .update("players", FieldValue.arrayUnion(newPlayer)).await()
                 loadGlobalTeams()
             } catch (e: Exception) { _errorMessage.value = e.message }
         }
@@ -132,7 +130,23 @@ class LeagueViewModel : ViewModel() {
         }
     }
 
-    // --- DRUŻYNY W KONKRETNEJ LIDZE ---
+    fun updatePlayerInGlobalTeam(teamId: String, oldPlayer: Player, newPlayer: Player) {
+        viewModelScope.launch {
+            try {
+                val teamDoc = firestore.collection("global_teams").document(teamId).get().await()
+                val team = teamDoc.toObject(Team::class.java)
+                if (team != null) {
+                    val updatedPlayers = team.players.map { 
+                        if (it.id == oldPlayer.id) newPlayer else it 
+                    }
+                    firestore.collection("global_teams").document(teamId)
+                        .update("players", updatedPlayers).await()
+                    loadGlobalTeams()
+                }
+            } catch (e: Exception) { _errorMessage.value = e.message }
+        }
+    }
+
     fun loadTeamsInLeague(leagueId: String) {
         viewModelScope.launch {
             _isLoading.value = true
