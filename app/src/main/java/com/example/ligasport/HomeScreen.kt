@@ -121,6 +121,8 @@ fun HomeScreen(
                 HomeTab.CALENDAR -> CalendarTabContent()
                 HomeTab.PROFILE -> ProfileTabContent(
                     userEmail = userEmail,
+                    userName = userName,
+                    onUserNameChanged = { newName -> userName = newName },
                     onLogout = onLogout
                 )
             }
@@ -356,31 +358,19 @@ fun CalendarTabContent() {
 // === ZAWARTOŚĆ ZAKŁADKI PROFIL ===
 // === ZAWARTOŚĆ ZAKŁADKI PROFIL ===
 @Composable
-fun ProfileTabContent(userEmail: String, onLogout: () -> Unit) {
+fun ProfileTabContent(
+    userEmail: String,
+    userName: String,
+    onUserNameChanged: (String) -> Unit,
+    onLogout: () -> Unit
+) {
     val auth = FirebaseAuth.getInstance()
     val firestore = FirebaseFirestore.getInstance()
 
-    // Pobierz aktualną nazwę użytkownika
-    var userName by remember { mutableStateOf("Użytkowniku") }
     var isEditing by remember { mutableStateOf(false) }
     var editedName by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
 
-    // Pobierz nazwę przy starcie
-    LaunchedEffect(Unit) {
-        val userId = auth.currentUser?.uid
-        if (userId != null) {
-            try {
-                val doc = firestore.collection("users")
-                    .document(userId)
-                    .get()
-                    .await()
-                userName = doc.getString("userName") ?: "Użytkowniku"
-            } catch (e: Exception) {
-                userName = "Użytkowniku"
-            }
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -447,7 +437,7 @@ fun ProfileTabContent(userEmail: String, onLogout: () -> Unit) {
                                     .document(userId)
                                     .update("userName", editedName)
                                     .addOnSuccessListener {
-                                        userName = editedName
+                                        onUserNameChanged(editedName)
                                         isEditing = false
                                         isSaving = false
                                     }
