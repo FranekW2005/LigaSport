@@ -2,6 +2,7 @@ package com.example.ligasport
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -61,11 +62,16 @@ fun HomeScreen(
         }
     }
 
+    var selectedLeagueId by remember { mutableStateOf("") }
+    var selectedLeagueName by remember { mutableStateOf("Wybierz ligę") }
+
     // Scaffold z bottom barem
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                modifier = Modifier.navigationBarsPadding()
+            ) {
                 HomeTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab,
@@ -90,7 +96,14 @@ fun HomeScreen(
         Box(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
                 HomeTab.HOME -> HomeTabContent(
-                    userName = userName
+                    userName = userName,
+                    viewModel = viewModel,
+                    selectedLeagueId = selectedLeagueId,
+                    selectedLeagueName = selectedLeagueName,
+                    onLeagueSelected = { id, name ->
+                        selectedLeagueId = id
+                        selectedLeagueName = name
+                    }
                 )
                 HomeTab.LEAGUES -> LeaguesScreen(
                     onLeagueClick = onLeagueClick,
@@ -111,10 +124,47 @@ fun HomeScreen(
 }
 
 // === ZAWARTOŚĆ ZAKŁADKI GŁÓWNA ===
+/**
+ * Główny ekran aplikacji pokazujący:
+ * - Powitanie spersonalizowane
+ * - Dropdown do wyboru ligi
+ * - Info o wybranej lidze (czy użytkownik jest adminem)
+ * - Najbliższe mecze w wybranej lidze
+ *
+ * @param userName - nazwa zalogowanego użytkownika
+ * @param viewModel - współdzielony ViewModel z danymi
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeTabContent(
-    userName: String
+    userName: String,
+    viewModel: LeagueViewModel = viewModel(),
+    selectedLeagueId: String,
+    selectedLeagueName: String,
+    onLeagueSelected: (String, String) -> Unit
 ) {
+    // Obserwowanie danych z viewmodel
+    val leagues by viewModel.leagues.collectAsState()
+    val matches by viewModel.matches.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    // Stan lokalny
+    var dropdownExpanded by remember { mutableStateOf(false) }
+    var showAddMatchDialog by remember { mutableStateOf(false) }
+
+    // Pobierz ligi przy pierwszym pojawieniu się
+    LaunchedEffect(Unit) {
+        viewModel.loadLeagues()
+    }
+
+    // Pobierz mecze gdy zmieni się wybrana liga
+    LaunchedEffect(selectedLeagueId) {
+        if (selectedLeagueId.isNotEmpty()) {
+            viewModel.loadMatches(selectedLeagueId)
+        }
+    }
+
+    // Interfejs
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -129,7 +179,7 @@ fun HomeTabContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Karta "Twoja Liga"
+        // Dropdown wyboru ligi
         Text(
             text = "Twoja Liga",
             fontSize = 20.sp,
@@ -138,17 +188,95 @@ fun HomeTabContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Card(
-            modifier = Modifier.fillMaxWidth()
+        ExposedDropdownMenuBox(
+            expanded = dropdownExpanded,
+            onExpandedChange = { dropdownExpanded = !dropdownExpanded }
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Liga Podwórkowa 2024", fontSize = 18.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "4 drużyny • 6 meczów",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp
+            // Pole tekstowe które działa jak przycisk (readOnly)
+            OutlinedTextField(
+                value = selectedLeagueName,
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor()
+            )
+
+            // Rozwijane menu z listą lig
+            ExposedDropdownMenu(
+                expanded = dropdownExpanded,
+                onDismissRequest = { dropdownExpanded = false }
+            ) {
+                if (leagues.isEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("Brak lig") },
+                        onClick = { dropdownExpanded = false }
+                    )
+                } else {
+                    leagues.forEach { league ->
+                        DropdownMenuItem(
+                            text = { Text(league.name) },
+                            onClick = {
+                                onLeagueSelected(league.id, league.name)
+                                dropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Informacje o wybranej lidze
+        if (selectedLeagueId.isNotEmpty()) {
+            val isAdmin = viewModel.isUserAdmin(selectedLeagueId)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isAdmin)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    else
+                        MaterialTheme.colorScheme.surface
                 )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = selectedLeagueName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (isAdmin) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    text = "Admin",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            if (isAdmin) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = { showAddMatchDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Dodaj mecz")
+                }
             }
         }
 
@@ -163,22 +291,230 @@ fun HomeTabContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Przykładowy mecz
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("FC Orły", fontSize = 16.sp)
-                Text("vs", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("KS Sport", fontSize = 16.sp)
+        when {
+            // 1 - nie wybrano ligi
+            selectedLeagueId.isEmpty() -> {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Wybierz ligę, aby zobaczyć najbliższe mecze",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
+
+            // 2 - wybrano ligę, ale nie ma meczów
+            matches.isEmpty() -> {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Brak zaplanowanych meczów",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+
+            // 3 - są mecze do wyświetlenia
+            else -> {
+                matches.forEach { match ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            // Nazwy drużyn
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(match.homeTeam, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("vs", color = MaterialTheme.colorScheme.primary)
+                                Text(match.awayTeam, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Data i godzina meczu
+                            Text(
+                                text = "${match.date} • ${match.time}",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            )
+
+                            // Wynik (pokazuje się tylko dla zakończonych meczów)
+                            if (match.homeScore != null && match.awayScore != null) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "${match.homeScore} : ${match.awayScore}",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }  // koniec when
+        if (showAddMatchDialog) {
+            // Pobierz drużyny z wybranej ligi
+            val teamsInLeague by viewModel.teamsInLeague.collectAsState()
+
+            // Załaduj drużyny przy otwarciu dialogu
+            LaunchedEffect(Unit) {
+                viewModel.loadTeamsInLeague(selectedLeagueId)
+            }
+
+            // Stan dla wyboru drużyn
+            var selectedHomeTeam by remember { mutableStateOf("") }
+            var selectedAwayTeam by remember { mutableStateOf("") }
+            var homeDropdownExpanded by remember { mutableStateOf(false) }
+            var awayDropdownExpanded by remember { mutableStateOf(false) }
+            var matchDate by remember { mutableStateOf("") }
+            var matchTime by remember { mutableStateOf("") }
+
+            AlertDialog(
+                onDismissRequest = { showAddMatchDialog = false },
+                title = { Text("Nowy Mecz") },
+                text = {
+                    Column {
+                        // Wybór gospodarzy
+                        Text("Gospodarze:", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ExposedDropdownMenuBox(
+                            expanded = homeDropdownExpanded,
+                            onExpandedChange = { homeDropdownExpanded = !homeDropdownExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedHomeTeam,
+                                onValueChange = {},
+                                readOnly = true,
+                                placeholder = { Text("Wybierz drużynę") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = homeDropdownExpanded) },
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = homeDropdownExpanded,
+                                onDismissRequest = { homeDropdownExpanded = false }
+                            ) {
+                                if (teamsInLeague.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("Brak drużyn w lidze") },
+                                        onClick = { homeDropdownExpanded = false }
+                                    )
+                                } else {
+                                    teamsInLeague.forEach { team ->
+                                        DropdownMenuItem(
+                                            text = { Text(team.name) },
+                                            onClick = {
+                                                selectedHomeTeam = team.name
+                                                homeDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        // Wybór gości
+                        Text("Goście:", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ExposedDropdownMenuBox(
+                            expanded = awayDropdownExpanded,
+                            onExpandedChange = { awayDropdownExpanded = !awayDropdownExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedAwayTeam,
+                                onValueChange = {},
+                                readOnly = true,
+                                placeholder = { Text("Wybierz drużynę") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = awayDropdownExpanded) },
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = awayDropdownExpanded,
+                                onDismissRequest = { awayDropdownExpanded = false }
+                            ) {
+                                if (teamsInLeague.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("Brak drużyn w lidze") },
+                                        onClick = { awayDropdownExpanded = false }
+                                    )
+                                } else {
+                                    teamsInLeague.forEach { team ->
+                                        DropdownMenuItem(
+                                            text = { Text(team.name) },
+                                            onClick = {
+                                                selectedAwayTeam = team.name
+                                                awayDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        // Data
+                        OutlinedTextField(
+                            value = matchDate,
+                            onValueChange = { matchDate = it },
+                            label = { Text("Data (DD.MM.RRRR)") },
+                            placeholder = { Text("np. 15.05.2026") },
+                            singleLine = true
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        // Godzina
+                        OutlinedTextField(
+                            value = matchTime,
+                            onValueChange = { matchTime = it },
+                            label = { Text("Godzina (GG:MM)") },
+                            placeholder = { Text("np. 18:00") },
+                            singleLine = true
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (selectedHomeTeam.isNotBlank() && selectedAwayTeam.isNotBlank()
+                                && selectedHomeTeam != selectedAwayTeam) {
+                                viewModel.addMatch(
+                                    selectedLeagueId,
+                                    selectedHomeTeam,
+                                    selectedAwayTeam,
+                                    matchDate,
+                                    matchTime
+                                )
+                                showAddMatchDialog = false
+                            }
+                        },
+                        enabled = selectedHomeTeam.isNotBlank() && selectedAwayTeam.isNotBlank()
+                                && selectedHomeTeam != selectedAwayTeam
+                    ) {
+                        Text("Dodaj")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddMatchDialog = false }) {
+                        Text("Anuluj")
+                    }
+                }
+            )
         }
-    }
-}
+    }  // koniec Column
+}  // koniec HomeTabContent
 
 // === ZAWARTOŚĆ ZAKŁADKI DRUŻYNA ===
 @OptIn(ExperimentalMaterial3Api::class)

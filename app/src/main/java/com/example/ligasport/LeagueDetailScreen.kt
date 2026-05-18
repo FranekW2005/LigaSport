@@ -35,7 +35,7 @@ fun LeagueDetailScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(25.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(
@@ -96,7 +96,9 @@ fun LeagueDetailScreen(
 
             Button(
                 onClick = { showAddTeamDialog = true },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 25.dp)
             ) {
                 Text("Dodaj drużynę do ligi")
             }

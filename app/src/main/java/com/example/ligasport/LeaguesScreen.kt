@@ -42,7 +42,7 @@ fun LeaguesScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(25.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(
