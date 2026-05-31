@@ -1,4 +1,4 @@
-package com.example.ligasport
+package com.example.ligasport.data.models
 
 data class Player(
     val id: String = "",
