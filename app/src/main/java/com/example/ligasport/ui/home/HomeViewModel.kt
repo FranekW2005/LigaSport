@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ligasport.data.models.League
 import com.example.ligasport.data.models.Match
+import com.example.ligasport.data.models.Team
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,12 +14,6 @@ import kotlinx.coroutines.tasks.await
 
 /**
  * ViewModel dla ekranu głównego (HomeScreen).
- *
- * Odpowiada za:
- * - Listę wszystkich lig
- * - Mecze w wybranej lidze
- * - Sprawdzanie czy użytkownik jest adminem
- * - Dodawanie meczów
  */
 class HomeViewModel : ViewModel() {
 
@@ -32,6 +27,10 @@ class HomeViewModel : ViewModel() {
     /** Lista meczów w wybranej lidze */
     private val _matches = MutableStateFlow<List<Match>>(emptyList())
     val matches: StateFlow<List<Match>> = _matches
+
+    /** Drużyny w wybranej lidze (do tworzenia meczu) */
+    private val _teamsInLeague = MutableStateFlow<List<Team>>(emptyList())
+    val teamsInLeague: StateFlow<List<Team>> = _teamsInLeague
 
     /** Czy trwa ładowanie */
     private val _isLoading = MutableStateFlow(false)
@@ -56,15 +55,11 @@ class HomeViewModel : ViewModel() {
     private val _selectedLeagueName = MutableStateFlow("Wybierz ligę")
     val selectedLeagueName: StateFlow<String> = _selectedLeagueName
 
-    // Pobierz dane przy starcie
     init {
         loadLeagues()
         loadUserName()
     }
 
-    /**
-     * Pobiera nazwę użytkownika z Firestore.
-     */
     private fun loadUserName() {
         viewModelScope.launch {
             try {
@@ -80,9 +75,6 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Pobiera wszystkie ligi z Firestore.
-     */
     fun loadLeagues() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -104,9 +96,6 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Pobiera mecze dla wybranej ligi, sortuje po dacie.
-     */
     fun loadMatches(leagueId: String) {
         viewModelScope.launch {
             try {
@@ -124,9 +113,25 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Dodaje nowy mecz do ligi.
-     */
+    /** Pobiera drużyny przypisane do ligi */
+    fun loadTeamsInLeague(leagueId: String) {
+        viewModelScope.launch {
+            try {
+                val snapshot = firestore.collection("leagues")
+                    .document(leagueId)
+                    .collection("teams")
+                    .get()
+                    .await()
+
+                _teamsInLeague.value = snapshot.documents.mapNotNull { doc ->
+                    doc.toObject(Team::class.java)?.copy(id = doc.id)
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Błąd ładowania drużyn ligi: ${e.message}"
+            }
+        }
+    }
+
     fun addMatch(leagueId: String, homeTeam: String, awayTeam: String, date: String, time: String) {
         viewModelScope.launch {
             try {
@@ -147,9 +152,20 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Sprawdza czy zalogowany użytkownik jest adminem ligi.
-     */
+    fun deleteMatch(matchId: String, leagueId: String) {
+        viewModelScope.launch {
+            try {
+                firestore.collection("matches")
+                    .document(matchId)
+                    .delete()
+                    .await()
+                loadMatches(leagueId)
+            } catch (e: Exception) {
+                _errorMessage.value = "Błąd usuwania meczu: ${e.message}"
+            }
+        }
+    }
+
     fun isUserAdmin(leagueId: String): Boolean {
         val league = _leagues.value.find { it.id == leagueId }
         return league?.adminId == auth.currentUser?.uid
@@ -162,9 +178,12 @@ class HomeViewModel : ViewModel() {
     fun setSelectedLeague(id: String, name: String) {
         _selectedLeagueId.value = id
         _selectedLeagueName.value = name
+        if (id.isNotEmpty()) {
+            loadMatches(id)
+            loadTeamsInLeague(id)
+        }
     }
 
-    /** Czyści błąd */
     fun clearError() {
         _errorMessage.value = null
     }

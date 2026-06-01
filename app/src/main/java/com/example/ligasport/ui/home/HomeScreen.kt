@@ -1,16 +1,27 @@
 package com.example.ligasport.ui.home
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,26 +32,38 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 
 // Modele
 import com.example.ligasport.data.models.Team
 import com.example.ligasport.data.models.Player
+import com.example.ligasport.data.models.Match
 
 // ViewModele
 import com.example.ligasport.ui.teams.TeamViewModel
 import com.example.ligasport.ui.profile.ProfileViewModel
 import com.example.ligasport.ui.leagues.LeaguesViewModel
 import com.example.ligasport.ui.leagueDetail.LeagueDetailViewModel
+import com.example.ligasport.ui.calendar.CalendarViewModel
 
 // Ekrany z innych pakietów
 import com.example.ligasport.ui.leagues.LeaguesScreen
 import com.example.ligasport.ui.leagueDetail.LeagueDetailScreen
 
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.*
+
 // === ZAKŁADKI BOTTOM BARA ===
 enum class HomeTab(val title: String) {
     HOME("Główna"),
-    LEAGUES("Ligii"),
+    LEAGUES("Ligi"),
     TEAM("Drużyna"),
     CALENDAR("Kalendarz"),
     PROFILE("Profil")
@@ -54,7 +77,7 @@ fun HomeScreen(
     teamViewModel: TeamViewModel = viewModel(),
     profileViewModel: ProfileViewModel = viewModel(),
     leaguesViewModel: LeaguesViewModel = viewModel(),
-    leagueDetailViewModel: LeagueDetailViewModel = viewModel()
+    calendarViewModel: CalendarViewModel = viewModel()
 ) {
     val selectedTabName by homeViewModel.selectedTab.collectAsState()
     val selectedTab = HomeTab.valueOf(selectedTabName)
@@ -107,7 +130,7 @@ fun HomeScreen(
                 )
 
                 HomeTab.TEAM -> TeamTabContent(viewModel = teamViewModel)
-                HomeTab.CALENDAR -> CalendarTabContent()
+                HomeTab.CALENDAR -> CalendarTabContent(viewModel = calendarViewModel, homeViewModel = homeViewModel)
                 HomeTab.PROFILE -> ProfileTabContent(
                     userEmail = profileViewModel.userEmail,
                     userName = userName,
@@ -122,7 +145,7 @@ fun HomeScreen(
     }
 }
 
-// --- HomeTabContent (używa HomeViewModel) ---
+// --- HomeTabContent ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeTabContent(
@@ -134,13 +157,19 @@ fun HomeTabContent(
 ) {
     val leagues by viewModel.leagues.collectAsState()
     val matches by viewModel.matches.collectAsState()
+    val teamsInLeague by viewModel.teamsInLeague.collectAsState()
 
     var dropdownExpanded by remember { mutableStateOf(false) }
     var showAddMatchDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadLeagues() }
+    
+    // Jeśli wejdziemy na ekran i mamy wybraną ligę, doładujmy dane
     LaunchedEffect(selectedLeagueId) {
-        if (selectedLeagueId.isNotEmpty()) viewModel.loadMatches(selectedLeagueId)
+        if (selectedLeagueId.isNotEmpty()) {
+            viewModel.loadMatches(selectedLeagueId)
+            viewModel.loadTeamsInLeague(selectedLeagueId)
+        }
     }
 
     Column(modifier = Modifier
@@ -248,116 +277,352 @@ fun HomeTabContent(
             }
 
             else -> {
-                matches.forEach { match ->
-                    Card(modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(match.homeTeam, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Text("vs", color = MaterialTheme.colorScheme.primary)
-                                Text(match.awayTeam, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "${match.date} • ${match.time}",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
-                            )
-                            if (match.homeScore != null && match.awayScore != null) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    "${match.homeScore} : ${match.awayScore}",
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                                )
-                            }
-                        }
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(matches) { match ->
+                        MatchCard(
+                            match = match,
+                            isAdmin = if (selectedLeagueId.isNotEmpty()) viewModel.isUserAdmin(match.leagueId) else false,
+                            onDelete = { viewModel.deleteMatch(match.id, match.leagueId) }
+                        )
                     }
                 }
             }
         }
 
         if (showAddMatchDialog) {
-            var selectedHomeTeam by remember { mutableStateOf("") }
-            var selectedAwayTeam by remember { mutableStateOf("") }
-            var matchDate by remember { mutableStateOf("") }
-            var matchTime by remember { mutableStateOf("") }
-
-            AlertDialog(
-                onDismissRequest = { showAddMatchDialog = false },
-                title = { Text("Nowy Mecz") },
-                text = {
-                    Column {
-                        OutlinedTextField(
-                            value = selectedHomeTeam,
-                            onValueChange = { selectedHomeTeam = it },
-                            label = { Text("Gospodarze") },
-                            singleLine = true
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = selectedAwayTeam,
-                            onValueChange = { selectedAwayTeam = it },
-                            label = { Text("Goście") },
-                            singleLine = true
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = matchDate,
-                            onValueChange = { matchDate = it },
-                            label = { Text("Data (DD.MM.RRRR)") },
-                            placeholder = { Text("np. 15.05.2026") },
-                            singleLine = true
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = matchTime,
-                            onValueChange = { matchTime = it },
-                            label = { Text("Godzina (GG:MM)") },
-                            placeholder = { Text("np. 18:00") },
-                            singleLine = true
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            if (selectedHomeTeam.isNotBlank() && selectedAwayTeam.isNotBlank()
-                                && selectedHomeTeam != selectedAwayTeam
-                            ) {
-                                viewModel.addMatch(
-                                    selectedLeagueId,
-                                    selectedHomeTeam,
-                                    selectedAwayTeam,
-                                    matchDate,
-                                    matchTime
-                                )
-                                showAddMatchDialog = false
-                            }
-                        }
-                    ) {
-                        Text("Dodaj")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddMatchDialog = false }) {
-                        Text("Anuluj")
-                    }
+            AddMatchDialog(
+                teams = teamsInLeague,
+                onDismiss = { showAddMatchDialog = false },
+                onConfirm = { home, away, date, time ->
+                    viewModel.addMatch(selectedLeagueId, home, away, date, time)
+                    showAddMatchDialog = false
                 }
             )
         }
-    }  // koniec Column
-}  // koniec HomeTabContent
+    }
+}
 
-// --- TeamTabContent (używa TeamViewModel) ---
+@Composable
+fun MatchCard(match: Match, isAdmin: Boolean, onDelete: () -> Unit) {
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 8.dp)) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(match.homeTeam, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Text("vs", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp))
+                    Text(match.awayTeam, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "${match.date} • ${match.time}",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                if (match.homeScore != null && match.awayScore != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "${match.homeScore} : ${match.awayScore}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+            }
+            if (isAdmin) {
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.align(Alignment.TopEnd).size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Usuń mecz",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// --- AddMatchDialog z wyborem drużyn z ligi i natywnymi pickerami ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddMatchDialog(
+    teams: List<Team>,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String, String) -> Unit
+) {
+    var selectedHomeTeam by remember { mutableStateOf("") }
+    var selectedAwayTeam by remember { mutableStateOf("") }
+    var matchDate by remember { mutableStateOf(LocalDate.now()) }
+    var matchTime by remember { mutableStateOf(LocalTime.of(18, 0)) }
+
+    var homeExpanded by remember { mutableStateOf(false) }
+    var awayExpanded by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nowy Mecz") },
+        text = {
+            Column {
+                Text("Gospodarze:", style = MaterialTheme.typography.labelMedium)
+                ExposedDropdownMenuBox(expanded = homeExpanded, onExpandedChange = { homeExpanded = !homeExpanded }) {
+                    OutlinedTextField(
+                        value = selectedHomeTeam,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = homeExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = homeExpanded, onDismissRequest = { homeExpanded = false }) {
+                        if (teams.isEmpty()) {
+                            DropdownMenuItem(text = { Text("Brak drużyn w lidze") }, onClick = {})
+                        } else {
+                            teams.forEach { team ->
+                                DropdownMenuItem(text = { Text(team.name) }, onClick = {
+                                    selectedHomeTeam = team.name
+                                    homeExpanded = false
+                                })
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+
+                Text("Goście:", style = MaterialTheme.typography.labelMedium)
+                ExposedDropdownMenuBox(expanded = awayExpanded, onExpandedChange = { awayExpanded = !awayExpanded }) {
+                    OutlinedTextField(
+                        value = selectedAwayTeam,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = awayExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = awayExpanded, onDismissRequest = { awayExpanded = false }) {
+                        if (teams.isEmpty()) {
+                            DropdownMenuItem(text = { Text("Brak drużyn w lidze") }, onClick = {})
+                        } else {
+                            teams.forEach { team ->
+                                DropdownMenuItem(text = { Text(team.name) }, onClick = {
+                                    selectedAwayTeam = team.name
+                                    awayExpanded = false
+                                })
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Data:", style = MaterialTheme.typography.labelMedium)
+                        OutlinedButton(
+                            onClick = {
+                                DatePickerDialog(context, { _, y, m, d ->
+                                    matchDate = LocalDate.of(y, m + 1, d)
+                                }, matchDate.year, matchDate.monthValue - 1, matchDate.dayOfMonth).show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(matchDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))) }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Godzina:", style = MaterialTheme.typography.labelMedium)
+                        OutlinedButton(
+                            onClick = {
+                                TimePickerDialog(context, { _, h, min ->
+                                    matchTime = LocalTime.of(h, min)
+                                }, matchTime.hour, matchTime.minute, true).show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(matchTime.format(timeFormatter)) }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (selectedHomeTeam.isNotBlank() && selectedAwayTeam.isNotBlank() && selectedHomeTeam != selectedAwayTeam) {
+                        onConfirm(selectedHomeTeam, selectedAwayTeam, matchDate.format(dateFormatter), matchTime.format(timeFormatter))
+                    }
+                }
+            ) { Text("Dodaj") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Anuluj") } }
+    )
+}
+
+// === ZAWARTOŚĆ ZAKŁADKI KALENDARZ (Pełny widok miesiąca) ===
+@Composable
+fun CalendarTabContent(viewModel: CalendarViewModel, homeViewModel: HomeViewModel) {
+    val matches by viewModel.allMatches.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    var currentMonth by remember { mutableStateOf(YearMonth.now()) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+
+    LaunchedEffect(Unit) { viewModel.loadAllMatches() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Kalendarz Rozgrywek", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+        } else {
+            // Nagłówek kalendarza (Miesiąc Rok + Strzałki)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBackIos, contentDescription = "Poprzedni miesiąc")
+                }
+                Text(
+                    text = "${currentMonth.month.getDisplayName(TextStyle.FULL, Locale("pl"))} ${currentMonth.year}".replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.titleLarge
+                )
+                IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = "Następny miesiąc")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Siatka dni miesiąca
+            MonthView(
+                month = currentMonth,
+                selectedDate = selectedDate,
+                matches = matches,
+                onDateSelected = { selectedDate = it }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Lista meczów w wybranym dniu
+            val matchesInSelectedDay = matches.filter { it.date == selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) }
+            
+            Text(
+                text = "Mecze w dniu ${selectedDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}:",
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+
+            if (matchesInSelectedDay.isEmpty()) {
+                Text("Brak meczów tego dnia.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(matchesInSelectedDay) { match ->
+                        MatchCard(
+                            match = match,
+                            isAdmin = homeViewModel.isUserAdmin(match.leagueId),
+                            onDelete = { viewModel.deleteMatch(match.id) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MonthView(
+    month: YearMonth,
+    selectedDate: LocalDate,
+    matches: List<Match>,
+    onDateSelected: (LocalDate) -> Unit
+) {
+    val daysInMonth = month.lengthOfMonth()
+    val firstDayOfMonth = month.atDay(1).dayOfWeek.value // 1 (Mon) to 7 (Sun)
+    val daysBefore = firstDayOfMonth - 1
+    
+    val days = (1..daysInMonth).toList()
+
+    val weekdays = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd")
+
+    Column {
+        // Nazwy dni tygodnia
+        Row(modifier = Modifier.fillMaxWidth()) {
+            weekdays.forEach { day ->
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(4.dp))
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            modifier = Modifier.height(280.dp) 
+        ) {
+            // Puste miejsca przed pierwszym dniem
+            items(daysBefore) { Spacer(modifier = Modifier.padding(4.dp)) }
+
+            items(days) { day ->
+                val date = month.atDay(day)
+                val isSelected = date == selectedDate
+                val hasMatch = matches.any { it.date == date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) }
+                val isToday = date == LocalDate.now()
+
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .padding(2.dp)
+                        .background(
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = if (isToday) 1.dp else 0.dp,
+                            color = if (isToday) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .clickable { onDateSelected(date) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = day.toString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                        )
+                        if (hasMatch) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 2.dp)
+                                    .size(4.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- TeamTabContent ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeamTabContent(viewModel: TeamViewModel) {
@@ -516,7 +781,7 @@ fun TeamTabContent(viewModel: TeamViewModel) {
     }
 }
 
-// --- ProfileTabContent (używa ProfileViewModel) ---
+// --- ProfileTabContent ---
 @Composable
 fun ProfileTabContent(
     userEmail: String,
@@ -607,20 +872,6 @@ fun ProfileTabContent(
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             modifier = Modifier.fillMaxWidth()
         ) { Text("Wyloguj się") }
-    }
-}
-
-// === ZAWARTOŚĆ ZAKŁADKI KALENDARZ ===
-@Composable
-fun CalendarTabContent() {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(text = "Kalendarz Meczów", fontSize = 24.sp)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Tu będzie kalendarz z nadchodzącymi meczami", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
     }
 }
 

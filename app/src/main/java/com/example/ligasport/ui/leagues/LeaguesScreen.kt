@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,6 +22,7 @@ fun LeaguesScreen(
     val leagues by viewModel.leagues.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val currentUserId = viewModel.currentUserId
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var newLeagueName by remember { mutableStateOf("") }
@@ -34,7 +36,7 @@ fun LeaguesScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Moje Ligi", fontSize = 28.sp)
+            Text(text = "Moje Ligi", fontSize = 28.sp, fontWeight = FontWeight.Bold)
             TextButton(onClick = onBack) { Text("Powrót") }
         }
 
@@ -56,17 +58,39 @@ fun LeaguesScreen(
                 }
             }
         } else {
-            LazyColumn {
+            LazyColumn(modifier = Modifier.weight(1f)) {
                 items(leagues) { league ->
+                    val isAdmin = league.adminId == currentUserId
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onLeagueClick(league.id) }.padding(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onLeagueClick(league.id) }
+                                .padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(league.name, fontSize = 18.sp)
-                            TextButton(onClick = { viewModel.deleteLeague(league.id) }) {
-                                Text("X", color = MaterialTheme.colorScheme.error)
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Text(league.name, fontSize = 18.sp)
+                                if (isAdmin) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shape = MaterialTheme.shapes.small
+                                    ) {
+                                        Text(
+                                            "Admin",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                }
+                            }
+                            if (isAdmin) {
+                                IconButton(onClick = { viewModel.deleteLeague(league.id) }) {
+                                    Text("X", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

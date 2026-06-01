@@ -3,6 +3,7 @@ package com.example.ligasport.ui.leagueDetail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ligasport.data.models.Team
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,10 +17,12 @@ import kotlinx.coroutines.tasks.await
  * - Drużyny przypisane do konkretnej ligi
  * - Dodawanie/usuwanie drużyn z ligi
  * - Dostępne drużyny globalne (do wyboru)
+ * - Sprawdzanie uprawnień admina
  */
 class LeagueDetailViewModel : ViewModel() {
 
     private val firestore = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
 
     /** Drużyny w wybranej lidze */
     private val _teamsInLeague = MutableStateFlow<List<Team>>(emptyList())
@@ -29,6 +32,10 @@ class LeagueDetailViewModel : ViewModel() {
     private val _globalTeams = MutableStateFlow<List<Team>>(emptyList())
     val globalTeams: StateFlow<List<Team>> = _globalTeams
 
+    /** Czy aktualny użytkownik jest adminem tej ligi */
+    private val _isAdmin = MutableStateFlow(false)
+    val isAdmin: StateFlow<Boolean> = _isAdmin
+
     /** Czy trwa ładowanie */
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -36,6 +43,21 @@ class LeagueDetailViewModel : ViewModel() {
     /** Komunikat błędu */
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
+
+    /**
+     * Pobiera dane o lidze i sprawdza uprawnienia.
+     */
+    fun checkIfAdmin(leagueId: String) {
+        viewModelScope.launch {
+            try {
+                val doc = firestore.collection("leagues").document(leagueId).get().await()
+                val adminId = doc.getString("adminId") ?: ""
+                _isAdmin.value = adminId == auth.currentUser?.uid
+            } catch (e: Exception) {
+                _isAdmin.value = false
+            }
+        }
+    }
 
     /**
      * Pobiera drużyny z podkolekcji ligi.

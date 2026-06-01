@@ -35,6 +35,9 @@ class LeaguesViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
+    /** ID aktualnie zalogowanego użytkownika */
+    val currentUserId: String? get() = auth.currentUser?.uid
+
     init {
         loadLeagues()
     }

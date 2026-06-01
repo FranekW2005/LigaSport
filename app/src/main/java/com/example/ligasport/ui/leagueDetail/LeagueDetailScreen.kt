@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,12 +22,14 @@ fun LeagueDetailScreen(
     val teamsInLeague by viewModel.teamsInLeague.collectAsState()
     val globalTeams by viewModel.globalTeams.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isAdmin by viewModel.isAdmin.collectAsState()
 
     var showAddTeamDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(leagueId) {
         viewModel.loadTeamsInLeague(leagueId)
         viewModel.loadGlobalTeams()
+        viewModel.checkIfAdmin(leagueId)
     }
 
     Column(
@@ -38,58 +41,90 @@ fun LeagueDetailScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Szczegóły Ligi", fontSize = 24.sp)
+            Column {
+                Text("Szczegóły Ligi", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                if (isAdmin) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Text(
+                            "Panel Administratora",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                }
+            }
             Button(onClick = onBack) { Text("Powrót") }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         if (isLoading) {
-            CircularProgressIndicator()
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
         } else {
             Text("Drużyny w tej lidze:", fontSize = 20.sp, modifier = Modifier.align(Alignment.Start))
             Spacer(modifier = Modifier.height(8.dp))
 
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(teamsInLeague) { team ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(team.name, fontSize = 18.sp)
-                                Text("Zawodników: ${team.players.size}", fontSize = 12.sp)
-                            }
-                            TextButton(onClick = { viewModel.deleteTeamFromLeague(leagueId, team.id) }) {
-                                Text("Usuń", color = MaterialTheme.colorScheme.error)
+            if (teamsInLeague.isEmpty()) {
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Text("Brak drużyn w lidze", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(teamsInLeague) { team ->
+                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(team.name, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    Text("Zawodników: ${team.players.size}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (isAdmin) {
+                                    TextButton(onClick = { viewModel.deleteTeamFromLeague(leagueId, team.id) }) {
+                                        Text("Usuń", color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { showAddTeamDialog = true }, modifier = Modifier.fillMaxWidth().padding(bottom = 25.dp)) {
-                Text("Dodaj drużynę do ligi")
+            if (isAdmin) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = { showAddTeamDialog = true },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 25.dp)
+                ) {
+                    Text("Dodaj drużynę do ligi")
+                }
             }
         }
     }
 
     if (showAddTeamDialog) {
-        val availableTeams = globalTeams.filter { gt -> teamsInLeague.none { it.name == gt.name } }
+        val availableTeams = globalTeams.filter { gt -> teamsInLeague.none { it.id == gt.id } }
         AlertDialog(
             onDismissRequest = { showAddTeamDialog = false },
-            title = { Text("Wybierz drużynę") },
+            title = { Text("Dodaj drużynę do ligi") },
             text = {
                 if (availableTeams.isEmpty()) {
-                    Text("Brak dostępnych drużyn. Stwórz je w zakładce 'Drużyna'.")
+                    Text("Wszystkie dostępne drużyny są już w tej lidze lub musisz je najpierw stworzyć w zakładce 'Drużyna'.")
                 } else {
                     LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                         items(availableTeams) { team ->
                             ListItem(
                                 headlineContent = { Text(team.name) },
+                                supportingContent = { Text("Zawodników: ${team.players.size}") },
                                 modifier = Modifier.clickable {
                                     viewModel.addTeamToLeague(leagueId, team)
                                     showAddTeamDialog = false
