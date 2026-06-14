@@ -162,6 +162,14 @@ fun HomeTabContent(
     var dropdownExpanded by remember { mutableStateOf(false) }
     var showAddMatchDialog by remember { mutableStateOf(false) }
 
+    /** Czy pokazać dialog wprowadzania wyniku */
+    var showResultDialog by remember { mutableStateOf(false) }
+    /** Który mecz jest aktualnie edytowany (do wyniku) */
+    var selectedMatchForResult by remember { mutableStateOf<com.example.ligasport.data.models.Match?>(null) }
+    /** Zmienne dla pól wyniku */
+    var homeScoreInput by remember { mutableStateOf("") }
+    var awayScoreInput by remember { mutableStateOf("") }
+
     LaunchedEffect(Unit) { viewModel.loadLeagues() }
     
     // Jeśli wejdziemy na ekran i mamy wybraną ligę, doładujmy dane
@@ -282,7 +290,13 @@ fun HomeTabContent(
                         MatchCard(
                             match = match,
                             isAdmin = if (selectedLeagueId.isNotEmpty()) viewModel.isUserAdmin(match.leagueId) else false,
-                            onDelete = { viewModel.deleteMatch(match.id, match.leagueId) }
+                            onDelete = { viewModel.deleteMatch(match.id, match.leagueId) },
+                            onClick = {  // ← DODAJ TO
+                                selectedMatchForResult = match
+                                homeScoreInput = match.homeScore?.toString() ?: ""
+                                awayScoreInput = match.awayScore?.toString() ?: ""
+                                showResultDialog = true
+                            }
                         )
                     }
                 }
@@ -299,14 +313,114 @@ fun HomeTabContent(
                 }
             )
         }
+        // === DIALOG WPROWADZANIA WYNIKU MECZU ===
+        if (showResultDialog && selectedMatchForResult != null) {
+            val match = selectedMatchForResult!!
+
+            AlertDialog(
+                onDismissRequest = {
+                    showResultDialog = false
+                    selectedMatchForResult = null
+                },
+                title = { Text("Wynik meczu", textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Nazwy drużyn
+                        Text(
+                            text = "${match.homeTeam}  vs  ${match.awayTeam}",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Pola na wynik - obok siebie
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Bramki gospodarzy
+                            OutlinedTextField(
+                                value = homeScoreInput,
+                                onValueChange = { newValue ->
+                                    // Pozwól tylko na cyfry
+                                    if (newValue.all { it.isDigit() } && newValue.length <= 2) {
+                                        homeScoreInput = newValue
+                                    }
+                                },
+                                label = { Text(match.homeTeam) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(120.dp)
+                            )
+
+                            Text(
+                                text = " : ",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // Bramki gości
+                            OutlinedTextField(
+                                value = awayScoreInput,
+                                onValueChange = { newValue ->
+                                    // Pozwól tylko na cyfry
+                                    if (newValue.all { it.isDigit() } && newValue.length <= 2) {
+                                        awayScoreInput = newValue
+                                    }
+                                },
+                                label = { Text(match.awayTeam) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(120.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            // Zapisz wynik do Firestore
+                            val homeScore = homeScoreInput.toIntOrNull() ?: 0
+                            val awayScore = awayScoreInput.toIntOrNull() ?: 0
+                            viewModel.updateMatchResult(
+                                matchId = match.id,
+                                homeScore = homeScore,
+                                awayScore = awayScore,
+                                leagueId = selectedLeagueId
+                            )
+                            showResultDialog = false
+                            selectedMatchForResult = null
+                        }
+                    ) {
+                        Text("Zapisz")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showResultDialog = false
+                            selectedMatchForResult = null
+                        }
+                    ) {
+                        Text("Anuluj")
+                    }
+                }
+            )
+        }
     }
 }
 
 @Composable
-fun MatchCard(match: Match, isAdmin: Boolean, onDelete: () -> Unit) {
+fun MatchCard(match: Match, isAdmin: Boolean, onDelete: () -> Unit, onClick: () -> Unit = {}) {
     Card(modifier = Modifier
         .fillMaxWidth()
-        .padding(bottom = 8.dp)) {
+        .padding(bottom = 8.dp)
+        .clickable(onClick = onClick) ) {
         Box(modifier = Modifier.padding(16.dp)) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(

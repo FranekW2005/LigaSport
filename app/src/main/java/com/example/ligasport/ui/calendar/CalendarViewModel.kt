@@ -14,7 +14,7 @@ import kotlinx.coroutines.tasks.await
  * ViewModel dla zakładki Kalendarz.
  * Obsługuje pobieranie wszystkich meczów i ich usuwanie.
  */
-class CalendarViewModel : ViewModel() {
+class  CalendarViewModel : ViewModel() {
     private val firestore = FirebaseFirestore.getInstance()
 
     private val _allMatches = MutableStateFlow<List<Match>>(emptyList())

@@ -187,4 +187,34 @@ class HomeViewModel : ViewModel() {
     fun clearError() {
         _errorMessage.value = null
     }
-}
+
+    /**
+     * Aktualizuje wynik meczu w Firestore.
+     *
+     * @param matchId - ID meczu do zaktualizowania
+     * @param homeScore - bramki gospodarzy
+     * @param awayScore - bramki gości
+     * @param leagueId - ID ligi (do odświeżenia listy meczów)
+     */
+    fun updateMatchResult(matchId: String, homeScore: Int, awayScore: Int, leagueId: String) {
+        viewModelScope.launch {
+            try {
+                // Aktualizuj dokument meczu w Firestore
+                firestore.collection("matches")
+                    .document(matchId)
+                    .update(
+                        mapOf(
+                            "homeScore" to homeScore,
+                            "awayScore" to awayScore
+                        )
+                    )
+                    .await()
+
+                // Odśwież listę meczów żeby zobaczyć wynik
+                loadMatches(leagueId)
+            } catch (e: Exception) {
+                _errorMessage.value = "Błąd zapisu wyniku: ${e.message}"
+            }
+        }
+    }
+} // Koniec klasy
