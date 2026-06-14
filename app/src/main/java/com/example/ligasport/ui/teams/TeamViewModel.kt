@@ -108,6 +108,7 @@ class TeamViewModel : ViewModel() {
     fun addPlayerToGlobalTeam(teamId: String, player: Player) {
         viewModelScope.launch {
             try {
+                // Generujemy unikalne ID dla zawodnika (żeby móc go potem edytować/usunąć)
                 val newPlayer = player.copy(id = UUID.randomUUID().toString())
                 firestore.collection("global_teams")
                     .document(teamId)

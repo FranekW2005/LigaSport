@@ -11,15 +11,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
- * ViewModel dla zakładki Kalendarz.
- * Obsługuje pobieranie wszystkich meczów i ich usuwanie.
+ * ViewModel obsługujący widok kalendarza. 
+ * Pobiera absolutnie wszystkie mecze (ze wszystkich lig), żebyśmy mogli je pokazać w jednym widoku.
  */
-class  CalendarViewModel : ViewModel() {
+class CalendarViewModel : ViewModel() {
     private val firestore = FirebaseFirestore.getInstance()
 
+    /** Lista wszystkich meczów pobranych z Firestore */
     private val _allMatches = MutableStateFlow<List<Match>>(emptyList())
     val allMatches: StateFlow<List<Match>> = _allMatches
 
+    /** Flaga ładowania danych */
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
@@ -28,7 +30,8 @@ class  CalendarViewModel : ViewModel() {
     }
 
     /**
-     * Pobiera wszystkie mecze ze wszystkich lig.
+     * Pobiera całą kolekcję "matches". 
+     * Wyświetlamy je potem w kalendarzu, filtrując po dacie już w UI.
      */
     fun loadAllMatches() {
         viewModelScope.launch {
@@ -50,13 +53,13 @@ class  CalendarViewModel : ViewModel() {
     }
 
     /**
-     * Usuwa mecz po ID.
+     * Usuwanie meczu bezpośrednio z poziomu kalendarza.
      */
     fun deleteMatch(matchId: String) {
         viewModelScope.launch {
             try {
                 firestore.collection("matches").document(matchId).delete().await()
-                loadAllMatches()
+                loadAllMatches() // Odświeżamy listę, żeby mecz zniknął z widoku
             } catch (e: Exception) {
                 Log.e("CalendarViewModel", "Błąd usuwania meczu: ${e.message}")
             }

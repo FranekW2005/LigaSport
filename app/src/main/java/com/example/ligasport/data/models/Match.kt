@@ -12,12 +12,12 @@ package com.example.ligasport.data.models
  * @param awayScore - bramki gości (null = mecz się nie odbył)
  */
 data class Match(
-    val id: String = "",
-    val leagueId: String = "",
-    val homeTeam: String = "",
-    val awayTeam: String = "",
-    val date: String = "",
-    val time: String = "",
-    val homeScore: Int? = null,
-    val awayScore: Int? = null
+    val id: String = "",          // ID dokumentu w bazie
+    val leagueId: String = "",    // Do której ligi przypisany jest mecz
+    val homeTeam: String = "",    // Nazwa gospodarzy
+    val awayTeam: String = "",    // Nazwa gości
+    val date: String = "",        // Data (np. "2023-12-01")
+    val time: String = "",        // Godzina (np. "18:00")
+    val homeScore: Int? = null,   // Bramki gospodarzy (null = brak wyniku)
+    val awayScore: Int? = null    // Bramki gości (null = brak wyniku)
 )

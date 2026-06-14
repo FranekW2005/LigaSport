@@ -35,18 +35,19 @@ fun AppNavigation() {
         navController = navController,
         startDestination = startDestination
     ) {
-        // Ekran logowania
+        // --- EKRAN LOGOWANIA ---
         composable("login") {
             LoginScreen(
                 onLoginSuccess = {
+                    // Po udanym logowaniu czyścimy stos, żeby user nie wrócił do logowania przyciskiem "back"
                     navController.navigate("home") {
-                        popUpTo("login") { inclusive = true }  // Usuń login ze stosu
+                        popUpTo("login") { inclusive = true }
                     }
                 }
             )
         }
 
-        // Ekran główny z bottom barem
+        // --- EKRAN GŁÓWNY (z zakładkami) ---
         composable("home") {
             HomeScreen(
                 onLeagueClick = { leagueId ->
@@ -54,14 +55,15 @@ fun AppNavigation() {
                 },
                 onLogout = {
                     FirebaseAuth.getInstance().signOut()
+                    // Przy wylogowaniu czyścimy wszystko i wracamy do logowania
                     navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }  // Wyczyść cały stos
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )
         }
 
-        // Lista lig (osobny ekran)
+        // --- LISTA LIG ---
         composable("leagues") {
             LeaguesScreen(
                 onLeagueClick = { leagueId ->
@@ -73,7 +75,8 @@ fun AppNavigation() {
             )
         }
 
-        // Szczegóły ligi (z parametrem leagueId)
+        // --- SZCZEGÓŁY KONKRETNEJ LIGI ---
+        // Przekazujemy leagueId w URL, żeby wiedzieć, które dane pobrać
         composable("leagueDetail/{leagueId}") { backStackEntry ->
             val leagueId = backStackEntry.arguments?.getString("leagueId") ?: ""
             LeagueDetailScreen(

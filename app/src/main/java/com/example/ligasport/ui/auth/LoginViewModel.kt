@@ -10,29 +10,35 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
+/**
+ * ViewModel obsługujący całą autoryzację (logowanie, rejestracja, wylogowanie).
+ * To tutaj "rozmawiamy" z Firebase Auth i zapisujemy dane użytkownika w Firestore.
+ */
 class AuthViewModel : ViewModel() {
 
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
-    /** Czy trwa logowanie/rejestracja */
+    // --- Stan UI ---
+
+    /** Czy kręci się kółeczko ładowania? */
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    /** Komunikat błędu (null = brak błędu) */
+    /** Przechowuje błąd, jeśli coś pójdzie nie tak (np. złe hasło) */
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    /** Czy użytkownik jest zalogowany */
+    /** Czy jesteśmy aktualnie zalogowani? */
     private val _isLoggedIn = MutableStateFlow(auth.currentUser != null)
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn
 
-    /** Czy jesteśmy w trybie rejestracji */
+    /** Przełącznik: true = rejestracja, false = logowanie */
     private val _isRegistering = MutableStateFlow(false)
     val isRegistering: StateFlow<Boolean> = _isRegistering
 
     /**
-     * Logowanie użytkownika.
+     * Logowanie przy użyciu emaila i hasła.
      */
     fun login(email: String, password: String, onSuccess: () -> Unit) {
         if (email.isBlank() || password.isBlank()) {
@@ -49,7 +55,7 @@ class AuthViewModel : ViewModel() {
                 auth.signInWithEmailAndPassword(email, password).await()
                 _isLoggedIn.value = true
                 _isLoading.value = false
-                onSuccess()
+                onSuccess() // Lecimy do ekranu głównego
             } catch (e: Exception) {
                 _isLoading.value = false
                 _errorMessage.value = "Nieprawidłowy email lub hasło"
@@ -58,7 +64,8 @@ class AuthViewModel : ViewModel() {
     }
 
     /**
-     * Rejestracja nowego użytkownika.
+     * Tworzenie nowego konta.
+     * Najpierw Auth, potem dane w Firestore i na końcu update profilu (displayName).
      */
     fun register(email: String, password: String, userName: String, onSuccess: () -> Unit) {
         if (email.isBlank() || password.isBlank()) {
@@ -75,12 +82,12 @@ class AuthViewModel : ViewModel() {
             _errorMessage.value = null
 
             try {
-                // 1. Utwórz konto
+                // 1. Tworzymy konto w Firebase Auth
                 val result = auth.createUserWithEmailAndPassword(email, password).await()
                 val user = result.user!!
                 val userId = user.uid
 
-                // 2. Zapisz nazwę w Firestore
+                // 2. Tworzymy dokument dla użytkownika w bazie Firestore
                 val userData = hashMapOf(
                     "userName" to userName,
                     "email" to email
@@ -90,7 +97,7 @@ class AuthViewModel : ViewModel() {
                     .set(userData)
                     .await()
 
-                // 3. Zapisz nazwę w Auth (displayName)
+                // 3. Ustawiamy displayName w profilu Firebase, żeby był łatwo dostępny
                 val profileUpdates = UserProfileChangeRequest.Builder()
                     .setDisplayName(userName)
                     .build()
@@ -107,7 +114,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /** Przełącz między logowaniem a rejestracją */
+    /** Przełączanie widoku między logowaniem a rejestracją */
     fun toggleRegistering() {
         _isRegistering.value = !_isRegistering.value
         _errorMessage.value = null
@@ -119,7 +126,7 @@ class AuthViewModel : ViewModel() {
         _isLoggedIn.value = false
     }
 
-    /** Sprawdza czy użytkownik jest zalogowany */
+    /** Pomocnicza funkcja do sprawdzenia czy sesja nadal trwa */
     fun checkLoginStatus(): Boolean {
         return auth.currentUser != null
     }
@@ -129,7 +136,7 @@ class AuthViewModel : ViewModel() {
         return auth.currentUser?.email ?: ""
     }
 
-    /** Czyści błąd */
+    /** Usuwa komunikat o błędzie z ekranu */
     fun clearError() {
         _errorMessage.value = null
     }

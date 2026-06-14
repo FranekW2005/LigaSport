@@ -1,10 +1,14 @@
 package com.example.ligasport.data.models
 
+/**
+ * Model danych dla zawodnika. 
+ * Przechowujemy tu podstawowe info, które wpisujemy przy dodawaniu gracza do drużyny.
+ */
 data class Player(
-    val id: String = "",
-    val name: String = "",
-    val position: String = "",
-    val age: String = "",
-    val height: String = "",
-    val weight: String = ""
+    val id: String = "",         // Unikalne ID (zazwyczaj z Firestore)
+    val name: String = "",       // Imię i nazwisko
+    val position: String = "",   // Pozycja na boisku (np. Napastnik, Bramkarz)
+    val age: String = "",        // Wiek zawodnika
+    val height: String = "",     // Wzrost w cm
+    val weight: String = ""      // Waga w kg
 )

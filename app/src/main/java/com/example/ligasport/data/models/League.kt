@@ -6,4 +6,8 @@ package com.example.ligasport.data.models
  * @param name - nazwa ligi
  * @param adminId - identyfikator użytkownika, który utworzył ligę
  */
-data class League(val id: String = "", val name: String = "", val adminId: String = "")
+data class League(
+    val id: String = "",       // Unikalny identyfikator dokumentu w Firestore
+    val name: String = "",     // Wyświetlana nazwa ligi
+    val adminId: String = ""   // ID użytkownika, który ma uprawnienia do edycji tej ligi
+)

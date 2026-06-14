@@ -60,7 +60,9 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.*
 
-// === ZAKŁADKI BOTTOM BARA ===
+/**
+ * Definicja zakładek, które widzimy na dole ekranu.
+ */
 enum class HomeTab(val title: String) {
     HOME("Główna"),
     LEAGUES("Ligi"),
@@ -69,6 +71,10 @@ enum class HomeTab(val title: String) {
     PROFILE("Profil")
 }
 
+/**
+ * Główny kontener aplikacji po zalogowaniu. 
+ * Obsługuje Scaffold z dolnym paskiem nawigacji i przełącza widoki w Boxie.
+ */
 @Composable
 fun HomeScreen(
     onLeagueClick: (String) -> Unit,
@@ -79,17 +85,18 @@ fun HomeScreen(
     leaguesViewModel: LeaguesViewModel = viewModel(),
     calendarViewModel: CalendarViewModel = viewModel()
 ) {
+    // Obserwujemy, która zakładka jest obecnie kliknięta
     val selectedTabName by homeViewModel.selectedTab.collectAsState()
     val selectedTab = HomeTab.valueOf(selectedTabName)
 
     val userName by homeViewModel.userName.collectAsState()
-
     val selectedLeagueId by homeViewModel.selectedLeagueId.collectAsState()
     val selectedLeagueName by homeViewModel.selectedLeagueName.collectAsState()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
+            // Dolny pasek nawigacyjny - klasyka Material 3
             NavigationBar(modifier = Modifier.navigationBarsPadding()) {
                 HomeTab.entries.forEach { tab ->
                     NavigationBarItem(
@@ -111,6 +118,7 @@ fun HomeScreen(
             }
         }
     ) { innerPadding ->
+        // Tutaj wyświetlamy treść wybranej zakładki
         Box(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
                 HomeTab.HOME -> HomeTabContent(
@@ -145,7 +153,10 @@ fun HomeScreen(
     }
 }
 
-// --- HomeTabContent ---
+/**
+ * Treść pierwszej zakładki - "Główna".
+ * Wybór ligi, info o adminie i lista meczów.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeTabContent(
@@ -170,9 +181,10 @@ fun HomeTabContent(
     var homeScoreInput by remember { mutableStateOf("") }
     var awayScoreInput by remember { mutableStateOf("") }
 
+    // Załaduj ligi na starcie
     LaunchedEffect(Unit) { viewModel.loadLeagues() }
     
-    // Jeśli wejdziemy na ekran i mamy wybraną ligę, doładujmy dane
+    // Jeśli zmienimy ligę w dropdownie, pobierz nowe mecze i drużyny
     LaunchedEffect(selectedLeagueId) {
         if (selectedLeagueId.isNotEmpty()) {
             viewModel.loadMatches(selectedLeagueId)
@@ -189,6 +201,7 @@ fun HomeTabContent(
         Text("Twoja Liga", fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Dropdown do wyboru aktywnej ligi
         ExposedDropdownMenuBox(
             expanded = dropdownExpanded,
             onExpandedChange = { dropdownExpanded = !dropdownExpanded }) {
@@ -217,6 +230,7 @@ fun HomeTabContent(
             }
         }
 
+        // Jeśli wybraliśmy ligę, sprawdźmy czy jesteśmy jej adminem
         if (selectedLeagueId.isNotEmpty()) {
             val isAdmin = viewModel.isUserAdmin(selectedLeagueId)
             Spacer(modifier = Modifier.height(8.dp))
@@ -248,6 +262,7 @@ fun HomeTabContent(
                     }
                 }
             }
+            // Tylko admin widzi przycisk dodawania meczu
             if (isAdmin) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
@@ -261,6 +276,7 @@ fun HomeTabContent(
         Text("Najbliższe Mecze", fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Wyświetlanie listy meczów
         when {
             selectedLeagueId.isEmpty() -> {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -291,7 +307,7 @@ fun HomeTabContent(
                             match = match,
                             isAdmin = if (selectedLeagueId.isNotEmpty()) viewModel.isUserAdmin(match.leagueId) else false,
                             onDelete = { viewModel.deleteMatch(match.id, match.leagueId) },
-                            onClick = {  // ← DODAJ TO
+                            onClick = {
                                 selectedMatchForResult = match
                                 homeScoreInput = match.homeScore?.toString() ?: ""
                                 awayScoreInput = match.awayScore?.toString() ?: ""
@@ -303,6 +319,7 @@ fun HomeTabContent(
             }
         }
 
+        // Dialog do dodawania nowego spotkania
         if (showAddMatchDialog) {
             AddMatchDialog(
                 teams = teamsInLeague,
@@ -313,7 +330,8 @@ fun HomeTabContent(
                 }
             )
         }
-        // === DIALOG WPROWADZANIA WYNIKU MECZU ===
+
+        // Dialog do wpisywania wyniku meczu
         if (showResultDialog && selectedMatchForResult != null) {
             val match = selectedMatchForResult!!
 
@@ -415,6 +433,9 @@ fun HomeTabContent(
     }
 }
 
+/**
+ * Komponent karty pojedynczego meczu.
+ */
 @Composable
 fun MatchCard(match: Match, isAdmin: Boolean, onDelete: () -> Unit, onClick: () -> Unit = {}) {
     Card(modifier = Modifier
@@ -439,6 +460,7 @@ fun MatchCard(match: Match, isAdmin: Boolean, onDelete: () -> Unit, onClick: () 
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
+                // Wyświetlamy wynik tylko jeśli został wpisany
                 if (match.homeScore != null && match.awayScore != null) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -450,6 +472,7 @@ fun MatchCard(match: Match, isAdmin: Boolean, onDelete: () -> Unit, onClick: () 
                     )
                 }
             }
+            // Admin ma dodatkowy przycisk usuwania meczu
             if (isAdmin) {
                 IconButton(
                     onClick = onDelete,
@@ -467,7 +490,9 @@ fun MatchCard(match: Match, isAdmin: Boolean, onDelete: () -> Unit, onClick: () 
     }
 }
 
-// --- AddMatchDialog z wyborem drużyn z ligi i natywnymi pickerami ---
+/**
+ * Dialog dodawania nowego meczu z wyborem drużyn z listy i natywnymi pickerami daty/godziny.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddMatchDialog(
@@ -580,7 +605,10 @@ fun AddMatchDialog(
     )
 }
 
-// === ZAWARTOŚĆ ZAKŁADKI KALENDARZ (Pełny widok miesiąca) ===
+/**
+ * Zawartość zakładki kalendarza. 
+ * Pozwala przeglądać mecze dzień po dniu w widoku miesiąca.
+ */
 @Composable
 fun CalendarTabContent(viewModel: CalendarViewModel, homeViewModel: HomeViewModel) {
     val matches by viewModel.allMatches.collectAsState()
@@ -598,7 +626,7 @@ fun CalendarTabContent(viewModel: CalendarViewModel, homeViewModel: HomeViewMode
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
         } else {
-            // Nagłówek kalendarza (Miesiąc Rok + Strzałki)
+            // Nagłówek kalendarza z przełączaniem miesięcy
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -618,7 +646,7 @@ fun CalendarTabContent(viewModel: CalendarViewModel, homeViewModel: HomeViewMode
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Siatka dni miesiąca
+            // Rysowanie siatki dni
             MonthView(
                 month = currentMonth,
                 selectedDate = selectedDate,
@@ -628,7 +656,7 @@ fun CalendarTabContent(viewModel: CalendarViewModel, homeViewModel: HomeViewMode
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Lista meczów w wybranym dniu
+            // Lista meczów pod kalendarzem dla wybranego dnia
             val matchesInSelectedDay = matches.filter { it.date == selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) }
             
             Text(
@@ -654,6 +682,9 @@ fun CalendarTabContent(viewModel: CalendarViewModel, homeViewModel: HomeViewMode
     }
 }
 
+/**
+ * Komponent budujący siatkę dni dla konkretnego miesiąca.
+ */
 @Composable
 fun MonthView(
     month: YearMonth,
@@ -666,7 +697,6 @@ fun MonthView(
     val daysBefore = firstDayOfMonth - 1
     
     val days = (1..daysInMonth).toList()
-
     val weekdays = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd")
 
     Column {
@@ -689,7 +719,7 @@ fun MonthView(
             columns = GridCells.Fixed(7),
             modifier = Modifier.height(280.dp) 
         ) {
-            // Puste miejsca przed pierwszym dniem
+            // Wypełnienie pustych pól przed 1. dniem miesiąca
             items(daysBefore) { Spacer(modifier = Modifier.padding(4.dp)) }
 
             items(days) { day ->
@@ -721,6 +751,7 @@ fun MonthView(
                             fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                         )
+                        // Kropka oznaczająca, że tego dnia są mecze
                         if (hasMatch) {
                             Box(
                                 modifier = Modifier
@@ -736,7 +767,10 @@ fun MonthView(
     }
 }
 
-// --- TeamTabContent ---
+/**
+ * Treść zakładki "Drużyna". 
+ * Zarządzanie własnymi drużynami i ich zawodnikami.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeamTabContent(viewModel: TeamViewModel) {
@@ -749,6 +783,7 @@ fun TeamTabContent(viewModel: TeamViewModel) {
 
     LaunchedEffect(Unit) { viewModel.loadGlobalTeams() }
 
+    // Nawigacja wewnątrz zakładki: Szczegóły Gracza -> Lista Graczy -> Lista Drużyn
     if (selectedPlayerForDetails != null && selectedTeamForPlayers != null) {
         PlayerDetailScreen(
             player = selectedPlayerForDetails!!,
@@ -782,6 +817,7 @@ fun TeamTabContent(viewModel: TeamViewModel) {
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Dodaj zawodnika") }
             Spacer(modifier = Modifier.height(16.dp))
+            
             val currentTeam = globalTeams.find { it.id == team.id } ?: team
             LazyColumn {
                 items(currentTeam.players) { player ->
@@ -895,7 +931,10 @@ fun TeamTabContent(viewModel: TeamViewModel) {
     }
 }
 
-// --- ProfileTabContent ---
+/**
+ * Treść zakładki "Profil".
+ * Wyświetla dane użytkownika, pozwala zmienić nick i się wylogować.
+ */
 @Composable
 fun ProfileTabContent(
     userEmail: String,
@@ -915,6 +954,8 @@ fun ProfileTabContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("Mój Profil", fontSize = 24.sp, modifier = Modifier.padding(bottom = 24.dp))
+        
+        // Avatar z pierwszą literą imienia
         Box(
             modifier = Modifier
                 .size(80.dp)
@@ -935,7 +976,9 @@ fun ProfileTabContent(
                 }
             }
         }
+        
         Spacer(modifier = Modifier.height(16.dp))
+        
         if (isEditing) {
             OutlinedTextField(
                 value = editedName,
@@ -960,9 +1003,7 @@ fun ProfileTabContent(
                     },
                     enabled = !isSaving
                 ) {
-                    if (isSaving) CircularProgressIndicator(modifier = Modifier.size(16.dp)) else Text(
-                        "Zapisz"
-                    )
+                    if (isSaving) CircularProgressIndicator(modifier = Modifier.size(16.dp)) else Text("Zapisz")
                 }
                 OutlinedButton(onClick = { isEditing = false }) { Text("Anuluj") }
             }
@@ -973,6 +1014,7 @@ fun ProfileTabContent(
                 editedName = userName; isEditing = true
             }) { Text("Zmień nazwę") }
         }
+        
         Spacer(modifier = Modifier.height(24.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -989,7 +1031,9 @@ fun ProfileTabContent(
     }
 }
 
-// === DIALOG DODAWANIA ZAWODNIKA ===
+/**
+ * Dialog do wprowadzania danych nowego zawodnika.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPlayerDialog(onDismiss: () -> Unit, onConfirm: (Player) -> Unit) {
@@ -1048,7 +1092,9 @@ fun AddPlayerDialog(onDismiss: () -> Unit, onConfirm: (Player) -> Unit) {
     )
 }
 
-// === SZCZEGÓŁY ZAWODNIKA ===
+/**
+ * Ekran szczegółów zawodnika (edycja danych).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerDetailScreen(player: Player, onBack: () -> Unit, onSave: (Player) -> Unit) {

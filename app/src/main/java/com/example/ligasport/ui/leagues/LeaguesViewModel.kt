@@ -23,7 +23,9 @@ class LeaguesViewModel : ViewModel() {
     private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    /** Lista lig */
+    // --- Stan danych ---
+
+    /** Lista wszystkich lig pobranych z Firestore */
     private val _leagues = MutableStateFlow<List<League>>(emptyList())
     val leagues: StateFlow<List<League>> = _leagues
 
@@ -35,7 +37,7 @@ class LeaguesViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    /** ID aktualnie zalogowanego użytkownika */
+    /** Wyciągamy UID, żeby w UI wiedzieć, czy pokazać przycisk usuwania */
     val currentUserId: String? get() = auth.currentUser?.uid
 
     init {
@@ -67,8 +69,7 @@ class LeaguesViewModel : ViewModel() {
     }
 
     /**
-     * Tworzy nową ligę.
-     * Twórca automatycznie staje się adminem.
+     * Tworzy nową ligę i przypisuje aktualnego usera jako admina.
      */
     fun createLeague(name: String) {
         viewModelScope.launch {
@@ -78,7 +79,7 @@ class LeaguesViewModel : ViewModel() {
                     "adminId" to (auth.currentUser?.uid ?: "")
                 )
                 firestore.collection("leagues").add(data).await()
-                loadLeagues()
+                loadLeagues() // Odświeżamy listę, żeby nowa liga się pojawiła
             } catch (e: Exception) {
                 _errorMessage.value = "Błąd tworzenia ligi: ${e.message}"
             }

@@ -13,6 +13,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+/**
+ * Ekran z listą wszystkich lig dostępnych w aplikacji.
+ * Możemy tu wejść w szczegóły ligi albo założyć własną.
+ */
 @Composable
 fun LeaguesScreen(
     onLeagueClick: (String) -> Unit,
@@ -24,6 +28,7 @@ fun LeaguesScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val currentUserId = viewModel.currentUserId
 
+    // Stan do obsługi tworzenia nowej ligi
     var showCreateDialog by remember { mutableStateOf(false) }
     var newLeagueName by remember { mutableStateOf("") }
 
@@ -31,6 +36,7 @@ fun LeaguesScreen(
         modifier = Modifier.fillMaxSize().padding(25.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Nagłówek ekranu
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -42,6 +48,7 @@ fun LeaguesScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Wyświetlanie błędu, jeśli np. padnie internet
         errorMessage?.let { error ->
             Text(text = error, color = MaterialTheme.colorScheme.error)
         }
@@ -58,8 +65,10 @@ fun LeaguesScreen(
                 }
             }
         } else {
+            // Lista przewijana z kartami lig
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(leagues) { league ->
+                    // Sprawdzamy, czy to my założyliśmy tę ligę
                     val isAdmin = league.adminId == currentUserId
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Row(
@@ -74,6 +83,7 @@ fun LeaguesScreen(
                                 Text(league.name, fontSize = 18.sp)
                                 if (isAdmin) {
                                     Spacer(modifier = Modifier.width(8.dp))
+                                    // Mały badge "Admin"
                                     Surface(
                                         color = MaterialTheme.colorScheme.primary,
                                         shape = MaterialTheme.shapes.small
@@ -87,6 +97,7 @@ fun LeaguesScreen(
                                     }
                                 }
                             }
+                            // Tylko admin może usunąć ligę
                             if (isAdmin) {
                                 IconButton(onClick = { viewModel.deleteLeague(league.id) }) {
                                     Text("X", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
@@ -99,12 +110,14 @@ fun LeaguesScreen(
         }
     }
 
+    // Plusik do dodawania nowej ligi w rogu ekranu
     Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.BottomEnd) {
         FloatingActionButton(onClick = { showCreateDialog = true }) {
             Text("+", fontSize = 24.sp)
         }
     }
 
+    // Popup do wpisania nazwy nowej ligi
     if (showCreateDialog) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },

@@ -13,6 +13,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+/**
+ * Ekran szczegółów wybranej ligi. 
+ * Pokazuje listę drużyn, które w niej grają i pozwala adminowi na zarządzanie składem ligi.
+ */
 @Composable
 fun LeagueDetailScreen(
     leagueId: String,
@@ -26,6 +30,7 @@ fun LeagueDetailScreen(
 
     var showAddTeamDialog by remember { mutableStateOf(false) }
 
+    // Gdy wchodzimy na ten ekran, odpalamy pobieranie wszystkich potrzebnych danych
     LaunchedEffect(leagueId) {
         viewModel.loadTeamsInLeague(leagueId)
         viewModel.loadGlobalTeams()
@@ -36,6 +41,7 @@ fun LeagueDetailScreen(
         modifier = Modifier.fillMaxSize().padding(25.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Górny pasek z tytułem i przyciskiem powrotu
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -76,6 +82,7 @@ fun LeagueDetailScreen(
                     Text("Brak drużyn w lidze", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
+                // Lista drużyn w lidze
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(teamsInLeague) { team ->
                         Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -88,6 +95,7 @@ fun LeagueDetailScreen(
                                     Text(team.name, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                     Text("Zawodników: ${team.players.size}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
+                                // Tylko admin może wyrzucić drużynę z ligi
                                 if (isAdmin) {
                                     TextButton(onClick = { viewModel.deleteTeamFromLeague(leagueId, team.id) }) {
                                         Text("Usuń", color = MaterialTheme.colorScheme.error)
@@ -99,6 +107,7 @@ fun LeagueDetailScreen(
                 }
             }
 
+            // Przycisk dodawania nowej drużyny (widoczny tylko dla admina)
             if (isAdmin) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
@@ -111,7 +120,9 @@ fun LeagueDetailScreen(
         }
     }
 
+    // Dialog wyboru drużyny spośród Twoich globalnych składów
     if (showAddTeamDialog) {
+        // Pokazujemy tylko te drużyny, których jeszcze nie ma w tej lidze
         val availableTeams = globalTeams.filter { gt -> teamsInLeague.none { it.id == gt.id } }
         AlertDialog(
             onDismissRequest = { showAddTeamDialog = false },

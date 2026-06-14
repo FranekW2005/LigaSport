@@ -10,13 +10,22 @@ import androidx.compose.ui.Modifier
 import com.example.ligasport.ui.theme.LigaSportTheme
 import com.example.ligasport.navigation.AppNavigation
 
+/**
+ * Główny punkt wejścia do aplikacji. 
+ * Tutaj ustawiamy motyw i odpalamy nawigację.
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Rozciągnięcie apki na cały ekran (pod pasek statusu)
         enableEdgeToEdge()
+        
         setContent {
+            // Nasz własny motyw LigaSport
             LigaSportTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
+                    // Startujemy główny graf nawigacji
                     AppNavigation()
                 }
             }

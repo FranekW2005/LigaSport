@@ -24,7 +24,9 @@ class LeagueDetailViewModel : ViewModel() {
     private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    /** Drużyny w wybranej lidze */
+    // --- Stan danych ---
+
+    /** Drużyny, które już są przypisane do tej ligi */
     private val _teamsInLeague = MutableStateFlow<List<Team>>(emptyList())
     val teamsInLeague: StateFlow<List<Team>> = _teamsInLeague
 
@@ -32,7 +34,9 @@ class LeagueDetailViewModel : ViewModel() {
     private val _globalTeams = MutableStateFlow<List<Team>>(emptyList())
     val globalTeams: StateFlow<List<Team>> = _globalTeams
 
-    /** Czy aktualny użytkownik jest adminem tej ligi */
+    // --- Stan UI ---
+
+    /** Czy aktualnie zalogowany user jest adminem tej konkretnej ligi? */
     private val _isAdmin = MutableStateFlow(false)
     val isAdmin: StateFlow<Boolean> = _isAdmin
 
@@ -85,7 +89,7 @@ class LeagueDetailViewModel : ViewModel() {
     }
 
     /**
-     * Pobiera wszystkie drużyny globalne (do dropdowna wyboru).
+     * Pobiera wszystkie Twoje drużyny z "global_teams", żeby pokazać je w liście do wyboru.
      */
     fun loadGlobalTeams() {
         viewModelScope.launch {
@@ -115,7 +119,7 @@ class LeagueDetailViewModel : ViewModel() {
                     .document(team.id)
                     .set(team)
                     .await()
-                loadTeamsInLeague(leagueId)
+                loadTeamsInLeague(leagueId) // Odświeżamy widok
             } catch (e: Exception) {
                 _errorMessage.value = "Błąd dodawania: ${e.message}"
             }

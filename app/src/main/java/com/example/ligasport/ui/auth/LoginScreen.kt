@@ -10,15 +10,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+/**
+ * Ekran logowania i rejestracji. 
+ * Jeden ekran, który zmienia się w zależności od tego, czy chcemy się zalogować, czy założyć konto.
+ */
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
-    viewModel: AuthViewModel = viewModel()  // ← Używa AuthViewModel!
+    viewModel: AuthViewModel = viewModel()
 ) {
+    // Lokalne stany dla pól tekstowych
     var userName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
+    // Obserwujemy stan z ViewModelu
     val isRegistering by viewModel.isRegistering.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
@@ -30,6 +36,7 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Tytuł - zmienia się dynamicznie
         Text(
             text = if (isRegistering) "Rejestracja" else "Logowanie",
             fontSize = 28.sp,
@@ -38,6 +45,7 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // Pole nazwy użytkownika pojawia się tylko przy rejestracji
         if (isRegistering) {
             OutlinedTextField(
                 value = userName,
@@ -49,6 +57,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        // Standardowe pola email i hasło
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -70,6 +79,7 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Wyświetlanie błędu, jeśli coś poszło nie tak
         errorMessage?.let { error ->
             Text(
                 text = error,
@@ -79,6 +89,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        // Główny przycisk akcji
         Button(
             onClick = {
                 if (isRegistering) {
@@ -91,6 +102,7 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             if (isLoading) {
+                // Małe kółeczko ładowania wewnątrz przycisku
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
                     color = MaterialTheme.colorScheme.onPrimary
@@ -105,6 +117,7 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Przycisk do przełączania trybu (Logowanie <-> Rejestracja)
         TextButton(
             onClick = {
                 viewModel.toggleRegistering()

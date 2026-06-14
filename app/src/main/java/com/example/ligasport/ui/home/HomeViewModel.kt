@@ -13,22 +13,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
- * ViewModel dla ekranu głównego (HomeScreen).
+ * Mózg ekranu głównego. 
+ * Zajmuje się pobieraniem lig, meczów i sprawdzaniem uprawnień admina.
  */
 class HomeViewModel : ViewModel() {
 
     private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    /** Lista wszystkich lig */
+    // --- Stan danych ---
+
+    /** Lista wszystkich dostępnych lig w systemie */
     private val _leagues = MutableStateFlow<List<League>>(emptyList())
     val leagues: StateFlow<List<League>> = _leagues
 
-    /** Lista meczów w wybranej lidze */
+    /** Mecze przypisane do aktualnie wybranej ligi */
     private val _matches = MutableStateFlow<List<Match>>(emptyList())
     val matches: StateFlow<List<Match>> = _matches
 
-    /** Drużyny w wybranej lidze (do tworzenia meczu) */
+    /** Drużyny z wybranej ligi (potrzebne np. do rozwijanej listy przy dodawaniu meczu) */
     private val _teamsInLeague = MutableStateFlow<List<Team>>(emptyList())
     val teamsInLeague: StateFlow<List<Team>> = _teamsInLeague
 
@@ -48,7 +51,7 @@ class HomeViewModel : ViewModel() {
     private val _selectedTab = MutableStateFlow("HOME")
     val selectedTab: StateFlow<String> = _selectedTab
 
-    /** Wybrana liga */
+    /** ID i nazwa ligi, którą użytkownik sobie "wyklikał" na ekranie głównym */
     private val _selectedLeagueId = MutableStateFlow("")
     val selectedLeagueId: StateFlow<String> = _selectedLeagueId
 
@@ -56,10 +59,12 @@ class HomeViewModel : ViewModel() {
     val selectedLeagueName: StateFlow<String> = _selectedLeagueName
 
     init {
+        // Na start pobieramy ligi i imię usera
         loadLeagues()
         loadUserName()
     }
 
+    /** Wyciąga imię zalogowanego użytkownika z dokumentu "users" */
     private fun loadUserName() {
         viewModelScope.launch {
             try {
@@ -75,6 +80,7 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    /** Pobiera listę wszystkich lig z kolekcji "leagues" */
     fun loadLeagues() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -96,6 +102,7 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    /** Pobiera mecze przefiltrowane po ID ligi */
     fun loadMatches(leagueId: String) {
         viewModelScope.launch {
             try {
@@ -106,7 +113,7 @@ class HomeViewModel : ViewModel() {
 
                 _matches.value = snapshot.documents.mapNotNull { doc ->
                     doc.toObject(Match::class.java)?.copy(id = doc.id)
-                }.sortedBy { it.date }
+                }.sortedBy { it.date } // Sortujemy datami, żeby było czytelnie
             } catch (e: Exception) {
                 _errorMessage.value = "Błąd ładowania meczów: ${e.message}"
             }
@@ -132,6 +139,7 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    /** Wysyła nowy mecz do Firestore */
     fun addMatch(leagueId: String, homeTeam: String, awayTeam: String, date: String, time: String) {
         viewModelScope.launch {
             try {
@@ -145,13 +153,14 @@ class HomeViewModel : ViewModel() {
                     "awayScore" to null
                 )
                 firestore.collection("matches").add(match).await()
-                loadMatches(leagueId)
+                loadMatches(leagueId) // Odświeżamy listę po dodaniu
             } catch (e: Exception) {
                 _errorMessage.value = "Błąd dodawania meczu: ${e.message}"
             }
         }
     }
 
+    /** Usuwa mecz z bazy */
     fun deleteMatch(matchId: String, leagueId: String) {
         viewModelScope.launch {
             try {
@@ -166,15 +175,18 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    /** Szybkie sprawdzenie: czy zalogowany user to admin tej ligi? */
     fun isUserAdmin(leagueId: String): Boolean {
         val league = _leagues.value.find { it.id == leagueId }
         return league?.adminId == auth.currentUser?.uid
     }
 
+    /** Zmienia aktywną zakładkę w dolnym pasku */
     fun setSelectedTab(tab: String) {
         _selectedTab.value = tab
     }
 
+    /** Zapamiętuje wybraną ligę i od razu dociąga do niej dane */
     fun setSelectedLeague(id: String, name: String) {
         _selectedLeagueId.value = id
         _selectedLeagueName.value = name
@@ -210,8 +222,7 @@ class HomeViewModel : ViewModel() {
                     )
                     .await()
 
-                // Odśwież listę meczów żeby zobaczyć wynik
-                loadMatches(leagueId)
+                loadMatches(leagueId) // Odśwież widok, żeby było widać wynik
             } catch (e: Exception) {
                 _errorMessage.value = "Błąd zapisu wyniku: ${e.message}"
             }
